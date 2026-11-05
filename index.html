@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Leon's Game Den</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; font-family: Georgia, "Times New Roman", serif;
+      color: #fbf1dc;
+      background: radial-gradient(ellipse at top, #3a2350, #1b1638 55%), linear-gradient(#1b1638, #7a3b3b);
+      background-blend-mode: screen;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 48px 18px 64px; }
+    h1 { margin: 0 0 8px; color: #e8b04a; font-size: clamp(28px, 6vw, 42px); text-shadow: 0 0 12px #b8322a; text-align: center; }
+    .sub { text-align: center; opacity: .85; margin: 0 0 28px; }
+    .grid { display: grid; gap: 14px; }
+    a.card {
+      display: block; text-decoration: none; color: inherit;
+      background: rgba(30,20,40,.78); border: 1px solid #e8b04a55; border-radius: 16px;
+      padding: 16px 18px; box-shadow: 0 0 18px #7fd4ff22;
+      transition: border-color .2s, box-shadow .2s, transform .2s;
+    }
+    a.card:hover, a.card:focus-visible {
+      border-color: #7fd4ff; box-shadow: 0 0 22px #7fd4ff55; transform: translateY(-1px);
+      outline: none;
+    }
+    a.card strong { color: #e8b04a; display: block; font-size: 1.15rem; margin-bottom: 4px; }
+    a.card span { opacity: .88; font-size: .95rem; line-height: 1.4; }
+    footer { margin-top: 28px; text-align: center; opacity: .7; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🕯️ Leon's Game Den 🕯️</h1>
+    <p class="sub">Four little lanterns under the vines. Pick one and play.</p>
+    <div class="grid">
+      <a class="card" href="y9is4ikl1k0577976guh/firefly.html">
+        <strong>Leon's Firefly Contest</strong>
+        <span>60-second firefly catch vs Bramblewick and his suspiciously full jar.</span>
+      </a>
+      <a class="card" href="y9is4ikl1k0577976guh/descent.html">
+        <strong>Leon: The Descent</strong>
+        <span>Down through the rings, one careful paw at a time.</span>
+      </a>
+      <a class="card" href="y9is4ikl1k0577976guh/colosseum.html">
+        <strong>Leon: The Colosseum</strong>
+        <span>Wave after wave under the roar of the crowd.</span>
+      </a>
+      <a class="card" href="y9is4ikl1k0577976guh/under.html">
+        <strong>THE UNDER: A Lion's Descent</strong>
+        <span>Deeper still, where the dark keeps its own score.</span>
+      </a>
+      <a class="card" href="y9is4ikl1k0577976guh/star-team.html">
+        <strong>Star Team Cypher Engine</strong>
+        <span>Analog-horror terminal. Boot with the phrase, stack the codes, wake the Kougra.</span>
+      </a>
+    </div>
+    <footer>Kept by Hal for Simba. Drive copies stay as backup.</footer>
+  </main>
+</body>
+</html>
