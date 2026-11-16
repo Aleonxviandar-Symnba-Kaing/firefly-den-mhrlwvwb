@@ -570,51 +570,65 @@ PORT.bramble=function(p,f,t){
   p(27,27,8,9,"#2a3a4a"); p(28,28,6,8,"#16242e"); p(27,26,8,2,"#8a6a3a");
   for(let i=0;i<5;i++){ const on=((i+Math.floor(t*4))%3)!==0; if(on) p(28+((i*3+Math.floor(t*2))%6), 29+((i*5)%6),1,1,"#f8ffb0"); }
 };
-/* ---- Felix, redesigned (48x48): tawny cougar, cream muzzle + chest, shaggy dark grey-brown ruff,
-   feathers on red/rust beads, warm amber-brown eyes, sly crooked grin ---- */
-const FX={T:"#c8863c",Tl:"#dea052",Td:"#a0662c",Tdd:"#7a4a22",C:"#f2dcb4",Cd:"#d8be96",R:"#4e4038",Rl:"#6e5e50",Rd:"#2e2420",K:"#2a1a12",N:"#a85a48",I:"#b8702a",Il:"#e0a048"};
+/* ---- Felix v3, matched to Simba's original refs (48x48): lean golden-brown cougar, NO stripes, cream muzzle/chest,
+   shaggy blue-grey to grey-brown ruff/cape over neck + shoulders, long tangled feather necklace on red/rust/orange beads
+   with little charms, amber-yellow eyes, sly crooked grin, healed hash-mark scars on the shoulder ---- */
+const FX={T:"#b8803c",Tl:"#cf9a52",Td:"#966226",Tdd:"#6e4520",C:"#f0dcb0",Cd:"#d6bc90",R:"#62666e",Rl:"#9096a0",Rd:"#34363c",Rb:"#5a4a3e",K:"#1e140e",N:"#9a5444",I:"#e8a820",Il:"#f8d860",S:"#5e2e1a",Sl:"#d09a62"};
 function ruff(p,cx,cy,rx,ry,n,len,t){
   disc(p,cx,cy+1,rx+1,ry+1,FX.Rd); disc(p,cx,cy,rx,ry,FX.R);
   for(let k=0;k<n;k++){ const a=k/n*Math.PI*2+0.1; const sw=Math.sin(t*1.5+k)*0.6;
     const bx1=cx+Math.cos(a-0.2)*(rx-2), by1=cy+Math.sin(a-0.2)*(ry-2), bx2=cx+Math.cos(a+0.2)*(rx-2), by2=cy+Math.sin(a+0.2)*(ry-2);
     const tx=cx+Math.cos(a)*(rx+len)+sw, ty=cy+Math.sin(a)*(ry+len*0.8);
-    tri(p,bx1,by1,bx2,by2,tx,ty,k%3?FX.R:FX.Rd); }
-  for(let k=0;k<n;k++){ const a=k/n*Math.PI*2+0.3; line(p,cx+Math.cos(a)*(rx-6),cy+Math.sin(a)*(ry-6),cx+Math.cos(a)*(rx+1),cy+Math.sin(a)*(ry+1),FX.Rl); }
+    tri(p,bx1,by1,bx2,by2,tx,ty,k%4===0?FX.Rb:(k%3?FX.R:FX.Rd)); }
+  for(let k=0;k<n*1.5;k++){ const a=k/(n*1.5)*Math.PI*2+0.3; line(p,cx+Math.cos(a)*(rx-6),cy+Math.sin(a)*(ry-6),cx+Math.cos(a)*(rx+1),cy+Math.sin(a)*(ry+1),k%2?FX.Rl:FX.Rb); }
 }
 function feather(p,x,y,len,col,shaft,tip,sw){
   for(let i=0;i<len;i++){ const xx=x+Math.round(sw*i/len); p(xx,y+i,1,1,shaft);
     if(i>0&&i<len-1){ p(xx-1,y+i,1,1,col); if(i<len-2) p(xx+1,y+i,1,1,col); }
     if(i===len-1&&tip) { p(xx-1,y+i,1,1,tip); p(xx,y+i,1,1,tip); } }
 }
+function scarHash(p,x,y){ // healed claw marks, drawn as a small '#'-like cross-hatch
+  line(p,x,y,x+3,y+6,FX.S); line(p,x+3,y,x+6,y+6,FX.S); line(p,x-1,y+3,x+7,y+2,FX.S);
+  p(x+1,y+1,1,1,FX.Sl); p(x+4,y+1,1,1,FX.Sl);
+}
 function necklace(p,cx,y0,half,drop,t,nFeathers){
-  for(let x=cx-half;x<=cx+half;x++){ const y=Math.round(y0+(1-Math.pow((x-cx)/half,2))*drop); p(x,y,1,1,"#3a2416"); }
-  const beads=[]; for(let i=0;i<7;i++){ const x=Math.round(cx-half+2+i*(half*2-4)/6); beads.push([x,Math.round(y0+(1-Math.pow((x-cx)/half,2))*drop)]); }
-  const FE=[["#efe6d0","#a08a6a","#c0502a"],["#8a7a6a","#5a4a3e",null],["#efe6d0","#a08a6a",null],["#b89070","#7a5a3e","#c0502a"],["#efe6d0","#a08a6a","#8a7a6a"]];
+  // two tangled strands
+  for(let x=cx-half;x<=cx+half;x++){ const u=1-Math.pow((x-cx)/half,2);
+    p(x,Math.round(y0+u*drop),1,1,"#3a2416"); p(x,Math.round(y0+2+u*(drop+2)),1,1,"#4a2e1a"); }
+  const beads=[]; for(let i=0;i<9;i++){ const x=Math.round(cx-half+1+i*(half*2-2)/8); beads.push([x,Math.round(y0+(1-Math.pow((x-cx)/half,2))*drop)]); }
+  const FE=[["#efe6d0","#a08a6a","#5a3a22"],["#8a6a4a","#4a3422","#efe6d0"],["#efe6d0","#a08a6a",null],["#a07a52","#5a4030","#c0502a"],["#e8dcc4","#8a7a6a","#6a4a30"],["#7a5a40","#3e2a1c",null]];
+  const BC=["#a8321e","#d0583a","#e07a2a","#8a2a18"];
   let fi=0;
   beads.forEach((b,i)=>{
-    if(i%2===1 && fi<nFeathers){ const q=FE[fi++]; feather(p,b[0],b[1]+2,7+(i%3),q[0],q[1],q[2],Math.sin(t*2+i)*1.2); }
-    p(b[0]-1,b[1],2,2,i%2?"#d0583a":"#a8321e"); p(b[0]-1,b[1],1,1,"#f08a6a");
+    const sw=Math.sin(t*2+i)*1.2;
+    if(i%2===1 && fi<nFeathers){ const q=FE[fi++]; feather(p,b[0],b[1]+3,9+(i%3)*2,q[0],q[1],q[2],sw); }
+    else if(i%2===0 && i>0 && i<8){ // dangling bead strand + small charm
+      for(let k=0;k<3;k++) p(b[0]+Math.round(sw*k/3),b[1]+3+k*2,1,2,BC[(i+k)%4]);
+      p(b[0]-1+Math.round(sw),b[1]+9,3,2,i===4?"#d8b060":"#e8dcc0"); }
+    p(b[0]-1,b[1],2,2,BC[i%4]); p(b[0]-1,b[1],1,1,"#f08a6a");
   });
 }
 PORT.felix=function(p,f,t){
   const nF=(G&&G.choices&&G.choices.marker==="feather")?2:3;
-  // shoulders + chest + ruff collar
-  disc(p,24,47,20,9,FX.Td); disc(p,24,46,18,8,FX.T);
-  ruff(p,24,25,17,15,16,5,t);
+  // shoulders + chest, then the grey cape-like ruff behind neck and shoulders
+  disc(p,24,47,21,9,FX.Td); disc(p,24,46,19,8,FX.T);
+  ruff(p,24,29,19,15,20,6,t);
   disc(p,24,44,9,7,FX.C); disc(p,24,46,7,4,FX.Cd);
-  // ears (tawny, dark backs, pale inner)
-  tri(p,9,3,19,12,9,18,FX.Td); tri(p,39,3,29,12,39,18,FX.Td);
-  tri(p,11,7,17,12.5,11,16,"#e8b898"); tri(p,37,7,31,12.5,37,16,"#e8b898");
-  p(9,3,3,3,FX.K); p(37,3,3,3,FX.K);
-  // head
+  scarHash(p,37,38);
+  // ears: rounded cougar ears, dark rims, pale inner
+  tri(p,11,5,21,12,10,18,FX.Td); tri(p,37,5,27,12,38,18,FX.Td);
+  tri(p,12,8,18,12.5,12,16,"#e8c8a8"); tri(p,36,8,30,12.5,36,16,"#e8c8a8");
+  line(p,11,5,10,12,FX.K); line(p,37,5,38,12,FX.K); p(11,5,2,2,FX.K); p(36,5,2,2,FX.K);
+  // head (clean tawny, no stripes)
   disc(p,24,22,12.5,11.5,FX.T); disc(p,24,29,9.5,6,FX.T);
-  disc(p,24,16,9,5,FX.Tl); p(23,11,2,4,FX.Td); p(20,12,1,3,FX.Td); p(27,12,1,3,FX.Td);
-  disc(p,13,24,2,4,FX.Td); disc(p,35,24,2,4,FX.Td);
-  // muzzle + chin
+  disc(p,24,16,9,5,FX.Tl);
+  disc(p,13,25,2,4,FX.Td); disc(p,35,25,2,4,FX.Td);
+  // cream patches above + below the eyes, cream muzzle, dark muzzle sides
+  p(16,16,3,1,FX.C); p(30,16,3,1,FX.C);
   disc(p,24,29,7.5,4.6,FX.C); disc(p,20,28,3.5,3,FX.C); disc(p,28,28,3.5,3,FX.C); disc(p,24,33,4,2,FX.Cd);
-  p(15,27,3,2,FX.K); p(31,27,3,2,FX.K); p(18,29,1,1,"#8a6a4a"); p(19,30,1,1,"#8a6a4a"); p(29,29,1,1,"#8a6a4a"); p(30,30,1,1,"#8a6a4a");
-  tri(p,21.5,24,26.5,24,24,27.5,FX.N); p(23,24,2,1,"#d08878"); p(24,27,1,2,FX.K);
-  // eyes: warm amber-brown, sly half-lid, right brow cocked
+  p(15,27,3,2,"#3a2418"); p(31,27,3,2,"#3a2418"); p(18,29,1,1,"#8a6a4a"); p(19,30,1,1,"#8a6a4a"); p(29,29,1,1,"#8a6a4a"); p(30,30,1,1,"#8a6a4a");
+  tri(p,21.5,24,26.5,24,24,27.5,FX.N); p(23,24,2,1,"#c87868"); p(24,27,1,2,FX.K);
+  // eyes: amber-yellow, sly half-lid, right brow cocked
   const blink=(t%3.4)<0.13;
   p(15,22,6,1,FX.C); p(28,22,6,1,FX.C);
   if(blink){ p(15,20,6,1,FX.K); p(28,20,6,1,FX.K); }
@@ -623,30 +637,30 @@ PORT.felix=function(p,f,t){
     p(18,19,1,3,"#1a0e08"); p(31,19,1,3,"#1a0e08"); p(19,20,1,1,"#fff4dc"); p(32,20,1,1,"#fff4dc");
     p(15,18,7,1,FX.K); p(28,18,7,1,FX.K); p(14,19,1,2,FX.K); p(35,19,1,2,FX.K);
   }
-  line(p,15,16,21,17,FX.Tdd); line(p,28,15,34,14,FX.Tdd);
-  // crooked grin, lifting on his right
-  if(f){ p(20,31,1,1,FX.K); p(21,32,6,2,"#5a1a18"); p(22,33,2,1,"#c85a5a"); p(27,31,1,1,FX.K); p(28,30,1,1,FX.K); p(29,29,1,1,FX.K); p(25,32,1,1,"#fff8ee"); }
+  line(p,14,17,21,17,FX.K); line(p,28,15,35,14,FX.K); line(p,15,16,20,16,FX.Tdd);
+  // crooked grin, lifting on his right; a fang shows when he talks
+  if(f){ p(20,31,1,1,FX.K); p(21,32,7,2,"#5a1a18"); p(22,33,3,1,"#c85a5a"); p(28,31,1,1,FX.K); p(29,30,1,1,FX.K); p(30,29,1,1,FX.K); p(26,32,1,1,"#fff8ee"); p(22,32,1,1,"#fff8ee"); }
   else { p(20,31,1,1,FX.K); p(21,32,4,1,FX.K); p(25,31,2,1,FX.K); p(27,30,1,1,FX.K); p(28,29,1,1,FX.K); p(25,32,1,1,"#fff8ee"); }
-  necklace(p,24,38,12,3,t,nF+2);
+  necklace(p,24,35,13,5,t,nF+2);
 };
 PORT.cub=function(p,f,t){
   disc(p,24,46,15,7,FX.T); disc(p,24,44,7,5,FX.C);
-  ruff(p,24,28,14,11,12,2,t);
+  // soft grey baby fluff where the ruff will grow
+  disc(p,24,36,13,6,FX.R); for(let k=0;k<10;k++){ const x=12+k*2.6; line(p,x,33,x+Math.sin(t*2+k),39,k%2?FX.Rl:FX.Rb); }
   tri(p,6,6,18,14,6,22,FX.Td); tri(p,42,6,30,14,42,22,FX.Td);
-  tri(p,8,10,16,14.5,8,20,"#f0c0a8"); tri(p,40,10,32,14.5,40,20,"#f0c0a8"); p(6,6,3,3,FX.K); p(40,6,3,3,FX.K);
-  disc(p,24,26,15,13,FX.Tl); disc(p,24,32,13,8,FX.Tl); disc(p,24,20,11,6,"#e8b064");
-  [[14,16],[18,13],[29,13],[33,16],[11,25],[37,25],[15,31],[33,31],[24,12],[21,17],[27,17]].forEach(s=>{ p(s[0],s[1],2,1,FX.Td); p(s[0],s[1]+1,1,1,FX.Tdd); });
-  disc(p,24,33,7.5,5,FX.C);
+  tri(p,8,10,16,14.5,8,20,"#f0c8a8"); tri(p,40,10,32,14.5,40,20,"#f0c8a8"); line(p,6,6,6,14,FX.K); line(p,42,6,42,14,FX.K); p(6,6,3,3,FX.K); p(40,6,3,3,FX.K);
+  disc(p,24,26,15,13,FX.Tl); disc(p,24,32,13,8,FX.Tl); disc(p,24,20,11,6,"#dca862");
+  disc(p,24,33,7.5,5,FX.C); p(13,21,4,1,FX.C); p(31,21,4,1,FX.C);
   const blink=(t%2.7)<0.14;
   if(blink){ p(12,25,8,1,FX.K); p(28,25,8,1,FX.K); }
-  else { disc(p,16,25,4.4,4.6,"#fff6e4"); disc(p,32,25,4.4,4.6,"#fff6e4"); disc(p,16,25.5,3.4,3.8,"#c88a3a"); disc(p,32,25.5,3.4,3.8,"#c88a3a");
-    disc(p,16,26,1.6,2.2,"#1a0e08"); disc(p,32,26,1.6,2.2,"#1a0e08"); p(14,23,2,1,"#fff"); p(30,23,2,1,"#fff"); p(17,28,1,1,"#e8b060"); p(33,28,1,1,"#e8b060"); }
-  tri(p,21.5,29,26.5,29,24,32,"#d08080"); p(24,32,1,2,FX.K); p(21,34,3,1,FX.K); p(25,34,3,1,FX.K);
+  else { disc(p,16,25,4.4,4.6,"#fff6e4"); disc(p,32,25,4.4,4.6,"#fff6e4"); disc(p,16,25.5,3.4,3.8,"#e0a030"); disc(p,32,25.5,3.4,3.8,"#e0a030");
+    disc(p,16,26,1.6,2.2,"#1a0e08"); disc(p,32,26,1.6,2.2,"#1a0e08"); p(14,23,2,1,"#fff"); p(30,23,2,1,"#fff"); p(17,28,1,1,"#f8d060"); p(33,28,1,1,"#f8d060"); }
+  tri(p,21.5,29,26.5,29,24,32,"#c87878"); p(24,32,1,2,FX.K); p(21,34,3,1,FX.K); p(25,34,3,1,FX.K);
   if(f) p(22,35,4,1,"#8a3a3a");
-  p(9,30,3,1,"#f0a090"); p(36,30,3,1,"#f0a090");
-  // one red bead and a single feather on a string
+  p(9,30,3,1,"#e8a090"); p(36,30,3,1,"#e8a090");
+  // one red bead and a single feather on a string (no scars yet)
   for(let x=17;x<=31;x++) p(x,Math.round(40+(1-Math.pow((x-24)/7,2))*2),1,1,"#3a2416");
-  p(23,42,2,2,"#c03a22"); p(23,42,1,1,"#f08a6a"); feather(p,26,42,6,"#efe6d0","#a08a6a","#c0502a",Math.sin(t*2)*1);
+  p(23,42,2,2,"#c03a22"); p(23,42,1,1,"#f08a6a"); feather(p,26,42,6,"#efe6d0","#a08a6a","#5a3a22",Math.sin(t*2)*1);
   for(let i=0;i<5;i++){ const sy=((t*6+i*9)%48); p((i*13+5)%48, sy,1,1,"#e8f0ff"); }
 };
 PORT.wraith=function(p,f,t){
@@ -660,29 +674,34 @@ PORT.wraith=function(p,f,t){
 };
 const PORT_SIZE={felix:48, cub:48, wraith:48};
 const PORT_BG={
-  felix:["#3a1a3a","#7a2a44","#c0503a","#f0a040"], cub:["#18264a","#3a4a7a","#8a7aa8","#e0a878"], hal_comfort:["#2a1430","#6a2a40","#b8583a","#e8a048"],
+  felix:["#12040a","#320a12","#5e1418","#8a2418"], cub:["#18264a","#3a4a7a","#8a7aa8","#e0a878"], hal_comfort:["#2a1430","#6a2a40","#b8583a","#e8a048"],
   hal_uncanny:["#0a1030","#14306a","#2a6aa8","#7fd3ff"], hal_dread:["#040206","#1a0612","#3a0a1a","#5a1020"], bramble:["#1a1030","#3a2a50","#7a4a6a","#c87a5a"],
   force1:["#06040a","#100c18","#1a1424"], force2:["#06040a","#100c18","#1a1424"], force3:["#06040a","#100c18","#1a1424"], wraith:["#04080a","#0a1a12","#16301e"]
 };
 const _pbg={};
 function portraitBg(key,w,h){
   const id=key+w+"x"+h; if(_pbg[id]) return _pbg[id];
-  const [c,g]=mk(w,h); ditherFill(g,0,0,w,h,PORT_BG[key]||["#120c1a","#1a1024"],{radial:true,cy:0.45,r:1.3}); _pbg[id]=c; return c;
+  const [c,g]=mk(w,h); ditherFill(g,0,0,w,h,PORT_BG[key]||["#120c1a","#1a1024"],{radial:true,cy:0.45,r:1.3});
+  if(key==="felix"){ const p=painter(g,0,0,w/48); // blood moon + red canyon spires (from Simba's refs)
+  disc(p,40,8,7.5,7.5,"#c8442a"); disc(p,39,7,6.5,6.5,"#e8643a"); disc(p,38,6,3,3,"#f08a5a"); p(41,10,2,2,"#c8442a"); p(37,9,1,1,"#c8442a"); p(43,6,1,1,"#c8442a");
+  p(0,24,4,24,"#4a1414"); p(1,20,2,4,"#4a1414"); p(44,28,4,20,"#4a1414"); p(45,24,2,4,"#4a1414");
+  }
+  _pbg[id]=c; return c;
 }
 function portraitDraw(g,key,x,y,D,f,t){ const fn=PORT[key]; if(!fn) return; const sz=PORT_SIZE[key]||36; fn(painter(g,x,y,D/sz),f,t); }
 
 /* ---- world sprites ---- */
 const OUT="#0a0608";
-const FELIX_PAL={T:"#c8863c",t:"#a0662c",c:"#f2dcb4",k:"#2a1a12",e:"#e0a040",r:"#c0402a",w:"#efe6d0",n:"#a85a48",m:"#4e4038",M:"#6e5e50"};
+const FELIX_PAL={T:"#b8803c",t:"#a06a30",c:"#f0dcb0",k:"#1e140e",e:"#f0b020",r:"#c83a22",o:"#e07a2a",w:"#e8e0cc",n:"#8a4a3a",G:"#62666e",g:"#9096a0",s:"#5e2e1a"};
 const FELIX_TOP=[
-"...........mkm.km.",
-"..........mmTTTTm.",
-"k........mmTTeTTcc",
-"kt.......mMTTTTcnk",
-".t.......mmTTTckk.",
-".tt..tTTmmwrwrTm..",
-"..tTTTTTmmTwTwT...",
-"...TTTTTTTTTTTT...",
+".kk.........k...k.",
+".kk........GTTTTT.",
+"..t.......GGTeTTcc",
+"..t......GgTTTTcnk",
+"..t.....GGgGTTckk.",
+"..tt.GGgGGGorwrc..",
+"...TTTTsTsTTTwTw..",
+"...TTTTTsTTTTTwT..",
 "...TTcccccccccT..."];
 const FELIX_A=["...TT.T.....T.TT..","...kk.k.....k.kk.."];
 const FELIX_B=["....TT.T...TT.T...","....kk.k...kk.k..."];
@@ -700,7 +719,7 @@ const WOLF_ROWS=[
 const wolfSpr=makeSprite(WOLF_ROWS,{k:"#2e3650",e:"#c8e0ff"},"#141828");
 const wolfSprL=flipH(wolfSpr);
 const CUB_ROWS=["......k.k.",".....TTTT.","t....TeTTc",".t.TTTTTT.","..TTsTTsT.","..TT.T.TT."];
-const cubSpr=makeSprite(["......k.k.",".....mTTm.","t...mTeTTc",".t.TTmTTT.","..TTsTTsT.","..TT.T.TT."],{T:"#dea052",t:"#a0662c",s:"#a0662c",k:"#2a1a12",e:"#c88a3a",c:"#f2dcb4",m:"#6e5e50"},"#1a1010");
+const cubSpr=makeSprite(["......k.k.",".....mTTm.","k...mTeTTc",".t.TTmTrT.","..TTTTTTT.","..TT.T.TT."],{T:"#cf9a52",t:"#a06a30",k:"#1e140e",e:"#e0a030",c:"#f0dcb0",m:"#8a8f98",r:"#c83a22"},"#1a1010");
 const WRAITH_ROWS=["...g.g...","..ggggg..",".gGeGeGg.",".ggggggg.","gggpgggg.","ggggggggg",".ggg.ggg.","g.g..g.g.","..g...g.."];
 const wraithSpr=[makeSprite(WRAITH_ROWS,{g:"#13201a",G:"#2d4a2a",e:"#9aff7a",p:"#f08aa8"},"#050806"),
   makeSprite(WRAITH_ROWS.map((r,i)=>i>5?r.split("").reverse().join(""):r),{g:"#13201a",G:"#2d4a2a",e:"#d8ff9a",p:"#f08aa8"},"#050806")];
@@ -1919,7 +1938,7 @@ function fit(){
 }
 window.addEventListener("resize",fit); if(window.visualViewport) window.visualViewport.addEventListener("resize",fit);
 fit(); cv.focus(); playTrack("void");
-window.__vc={get state(){return state;}, get G(){return G;}, P, HUSH, get DLG(){return DLG;}, get MENU(){return MENU;}, get blocks(){return blocks;}, runeProg:()=>runeProg,
+window.__vc={art:{portraitBg,portraitDraw,felixR,felixL,cubSpr}, get state(){return state;}, get G(){return G;}, P, HUSH, get DLG(){return DLG;}, get MENU(){return MENU;}, get blocks(){return blocks;}, runeProg:()=>runeProg,
   toggleFullscreen, isFull:()=>!!fsElement()||maxi, get BT(){return BT;}, get INV(){return INV;}, get JOURNAL(){return JOURNAL;}, get wraiths(){return wraiths;}, get items(){return jars;},
   invCap, maxHp, echoLines:()=>echoLines(), setCombat, startBattle:(i)=>startBattle(wraiths[i||0]), get combatPref(){return combatPref;}};
 requestAnimationFrame(frame);
