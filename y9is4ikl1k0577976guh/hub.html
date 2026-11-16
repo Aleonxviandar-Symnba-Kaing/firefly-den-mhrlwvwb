@@ -66,6 +66,14 @@
   }
   #btnEnter:active, #btnEnter.held { transform: translateY(3px); box-shadow: none; }
   #btnEnter.ready { box-shadow: 0 3px 0 #5a1a12, 0 0 16px #7fd3ff88; }
+  #story {
+    position: absolute; top: 6px; left: 6px; height: 22px; z-index: 5; padding: 0 8px; box-sizing: border-box;
+    font: 700 9px ui-monospace, Menlo, monospace; letter-spacing: 0.5px; line-height: 18px; text-decoration: none;
+    color: #ffe6f0; background: #3a0c2acc; border: 2px solid #ff5a8a;
+    box-shadow: 0 2px 0 #4a0a20, 0 0 10px #ff4a7a; animation: storyGlow 1.6s ease-in-out infinite;
+  }
+  #story:active { transform: translateY(2px); }
+  @keyframes storyGlow { 0%,100% { box-shadow: 0 2px 0 #4a0a20, 0 0 6px #ff4a7a88; } 50% { box-shadow: 0 2px 0 #4a0a20, 0 0 16px #ff4a7a; } }
 </style>
 </head>
 <body>
@@ -73,6 +81,7 @@
   <div id="stage">
   <canvas id="cv" width="320" height="224" tabindex="0" aria-label="Leon's Vinecrown Hub"></canvas>
   <button id="mute" type="button" aria-label="Toggle mute">BGM</button>
+  <a id="story" href="vinecrown.html" aria-label="Story Mode: Vinecrown, The Hollow Beneath">&#10022; STORY MODE</a>
   <div id="pad">
     <div id="dpad">
       <button id="btnU" type="button" aria-label="Up">▲</button>
@@ -1120,7 +1129,7 @@ function drawTitle(){
   ctx.globalAlpha=pulse;
   drawText(ctx, "PRESS ENTER OR TAP TO BEGIN", VW/2, VH-30, {s:1, c:"#fff6c8", align:"center", shadow:"#0a0618"});
   ctx.globalAlpha=1;
-  drawText(ctx, "KEPT BY HAL FOR SIMBA", VW/2, VH-16, {s:1, c:"#8a7a60", align:"center"});
+  drawText(ctx, "NEW: STORY MODE - TOP LEFT, OR PRESS V", VW/2, VH-16, {s:1, c:"#ff8ab0", align:"center", shadow:"#0a0618"});
 }
 
 function drawHUD(){
@@ -1188,6 +1197,7 @@ window.addEventListener("keydown", ev=>{
   if(["arrowup","arrowdown","arrowleft","arrowright"," ","enter","w","a","s","d","h","j","k","l"].indexOf(k)>=0) ev.preventDefault();
   if(k==="enter"||k===" ") enterBuf=true;
   if(k==="m") setMuted(!muted);
+  if(k==="v") window.location.href="vinecrown.html";
 });
 window.addEventListener("keyup", ev=>{
   keys[(ev.key||"").toLowerCase()]=false;

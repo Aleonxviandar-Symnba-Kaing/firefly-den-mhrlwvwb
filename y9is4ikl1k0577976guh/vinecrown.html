@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#040208">
+<title>Vinecrown: The Hollow Beneath (Chapter 1)</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body {
+    margin: 0; width: 100%; height: 100%; height: 100dvh;
+    background: #040208; overflow: hidden; touch-action: none;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+    user-select: none; -webkit-user-select: none;
+  }
+  #app {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #stage { position: relative; display: inline-block; line-height: 0; }
+  #cv {
+    display: block; image-rendering: pixelated; image-rendering: crisp-edges;
+    outline: none; background: #040208;
+    box-shadow: 0 0 0 2px #000, 0 0 40px #4a103044;
+  }
+  .topbtn {
+    position: absolute; top: 6px; height: 22px; z-index: 6; padding: 0 6px;
+    font: 700 9px ui-monospace, Menlo, monospace; letter-spacing: 0.5px; color: #ffd56a; background: #1a0c24cc;
+    border: 2px solid #8a6a3a; box-shadow: 0 2px 0 #3a2410; cursor: pointer;
+    line-height: 18px; text-align: center; text-decoration: none; box-sizing: border-box;
+  }
+  .topbtn:active { transform: translateY(2px); box-shadow: none; }
+  #hubBtn { left: 6px; }
+  #mute { right: 6px; width: 46px; }
+  #menuBtn { right: 58px; }
+  #mute.off { color: #6a5070; border-color: #5a4060; }
+  #pad { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+  @media (orientation: portrait) {
+    body.touch #app { align-items: flex-start; padding-top: calc(12px + env(safe-area-inset-top)); }
+  }
+  body.touch #pad { display: block; }
+  #dpad {
+    position: absolute; left: calc(8px + env(safe-area-inset-left));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    width: 138px; height: 138px; pointer-events: none; opacity: 0.85;
+  }
+  #dpad button {
+    position: absolute; width: 46px; height: 46px; pointer-events: auto;
+    color: #ffe9b0; background: #140a20cc; border: 2px solid #8a6a3a;
+    box-shadow: 0 2px 0 #3a2410; font: 700 15px ui-monospace, monospace; cursor: pointer; touch-action: none;
+  }
+  #dpad button.held { transform: translateY(2px); box-shadow: none; background: #3a2040ee; }
+  #btnU { left: 46px; top: 0; } #btnD { left: 46px; top: 92px; }
+  #btnL { left: 0; top: 46px; } #btnR { left: 92px; top: 46px; }
+  .act {
+    position: absolute; width: 62px; height: 62px; border-radius: 50%; pointer-events: auto;
+    font: 700 12px ui-monospace, monospace; letter-spacing: 1px; cursor: pointer; touch-action: none; opacity: 0.88;
+  }
+  #btnA { right: calc(12px + env(safe-area-inset-right)); bottom: calc(46px + env(safe-area-inset-bottom));
+    color: #fff6c8; background: #7a1a2acc; border: 2px solid #e8b04a; box-shadow: 0 3px 0 #3a0a12; }
+  #btnB { right: calc(84px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom));
+    color: #d8f0ff; background: #1a3a5acc; border: 2px solid #7fd3ff; box-shadow: 0 3px 0 #0a1a2a; width: 54px; height: 54px; font-size: 10px; }
+  .act.held { transform: translateY(3px); box-shadow: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+  <canvas id="cv" width="320" height="224" tabindex="0" aria-label="Vinecrown: The Hollow Beneath"></canvas>
+  <a id="hubBtn" class="topbtn" href="hub.html" aria-label="Back to Leon's Vinecrown Hub">&#9664; HUB</a>
+  <button id="menuBtn" class="topbtn" type="button" aria-label="Menu">MENU</button>
+  <button id="mute" class="topbtn" type="button" aria-label="Toggle mute">BGM</button>
+  <div id="pad">
+    <div id="dpad">
+      <button id="btnU" type="button" aria-label="Up">&#9650;</button>
+      <button id="btnD" type="button" aria-label="Down">&#9660;</button>
+      <button id="btnL" type="button" aria-label="Left">&#9664;</button>
+      <button id="btnR" type="button" aria-label="Right">&#9654;</button>
+    </div>
+    <button id="btnA" class="act" type="button" aria-label="A: talk, use, advance">A</button>
+    <button id="btnB" class="act" type="button" aria-label="B: firefly jar, back">B JAR</button>
+  </div>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+/* Vinecrown: The Hollow Beneath — Chapter 1.
+   An original story-mode game for Simba's Game Den. All art is drawn in code,
+   all music is original WebAudio chiptune. No gore, no sexual content. */
+const VW=320, VH=224, TS=16;
+const cv=document.getElementById("cv");
+const ctx=cv.getContext("2d");
+ctx.imageSmoothingEnabled=false;
+let time=0;
+
+function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function mk(w,h){ const c=document.createElement("canvas"); c.width=w; c.height=h; const g=c.getContext("2d"); g.imageSmoothingEnabled=false; return [c,g]; }
+let _s=0x51BA;
+function srand(){ _s^=_s<<13; _s^=_s>>>17; _s^=_s<<5; return ((_s>>>0)%10000)/10000; }
+function hash(x,y){ let h=(x*374761393+y*668265263)|0; h=(h^(h>>>13))*1274126177|0; return ((h^(h>>>16))>>>0)/4294967295; }
+function makeSprite(rows, pal, outline){
+  const h=rows.length, w=Math.max(...rows.map(r=>r.length));
+  const pad=outline?1:0;
+  const [c,g]=mk(w+pad*2, h+pad*2);
+  const filled=(i,j)=>{ if(j<0||j>=h) return false; const ch=rows[j][i]; return !!(ch && ch!=="." && pal[ch]); };
+  if(outline){ g.fillStyle=outline;
+    for(let j=-1;j<=h;j++) for(let i=-1;i<=w;i++){ if(filled(i,j)) continue;
+      if(filled(i-1,j)||filled(i+1,j)||filled(i,j-1)||filled(i,j+1)) g.fillRect(i+pad,j+pad,1,1); } }
+  for(let j=0;j<h;j++) for(let i=0;i<rows[j].length;i++){ if(!filled(i,j)) continue; g.fillStyle=pal[rows[j][i]]; g.fillRect(i+pad,j+pad,1,1); }
+  return c;
+}
+function flipH(src){ const [c,g]=mk(src.width,src.height); g.translate(src.width,0); g.scale(-1,1); g.drawImage(src,0,0); return c; }
+
+/* pixel painter helpers: p(x,y,w,h,color) in art space, scaled by s */
+function painter(g,ox,oy,s){ return function(x,y,w,h,c){ g.fillStyle=c; g.fillRect(ox+Math.round(x)*s, oy+Math.round(y)*s, (w||1)*s, (h||1)*s); }; }
+function disc(p,cx,cy,rx,ry,c){
+  for(let y=Math.ceil(cy-ry); y<=Math.floor(cy+ry); y++){
+    const dy=(y-cy)/ry; const hw=rx*Math.sqrt(Math.max(0,1-dy*dy));
+    const x0=Math.round(cx-hw), x1=Math.round(cx+hw);
+    if(x1>=x0) p(x0,y,x1-x0+1,1,c);
+  }
+}
+function tri(p,ax,ay,bx,by,cx_,cy_,c){
+  const minx=Math.floor(Math.min(ax,bx,cx_)), maxx=Math.ceil(Math.max(ax,bx,cx_));
+  const miny=Math.floor(Math.min(ay,by,cy_)), maxy=Math.ceil(Math.max(ay,by,cy_));
+  const e=(x0,y0,x1,y1,x,y)=>(x1-x0)*(y-y0)-(y1-y0)*(x-x0);
+  for(let y=miny;y<=maxy;y++){ let run=-1;
+    for(let x=minx;x<=maxx+1;x++){
+      const px_=x+0.5, py_=y+0.5;
+      const a=e(ax,ay,bx,by,px_,py_), b=e(bx,by,cx_,cy_,px_,py_), d=e(cx_,cy_,ax,ay,px_,py_);
+      const inside=x<=maxx && ((a>=0&&b>=0&&d>=0)||(a<=0&&b<=0&&d<=0));
+      if(inside){ if(run<0) run=x; } else if(run>=0){ p(run,y,x-run,1,c); run=-1; }
+    }
+  }
+}
+function line(p,x0,y0,x1,y1,c){
+  x0=Math.round(x0); y0=Math.round(y0); x1=Math.round(x1); y1=Math.round(y1);
+  const dx=Math.abs(x1-x0), dy=-Math.abs(y1-y0), sx=x0<x1?1:-1, sy=y0<y1?1:-1; let err=dx+dy, n=0;
+  while(n++<400){ p(x0,y0,1,1,c); if(x0===x1&&y0===y1) break; const e2=2*err; if(e2>=dy){err+=dy;x0+=sx;} if(e2<=dx){err+=dx;y0+=sy;} }
+}
+
+/* ---- 5x7 pixel font ---- */
+const FONT={};
+(function(){
+  const pack={
+    "0":"0E13151911110E","1":"040C040404040E","2":"0E11010204081F","3":"0E11010601110E","4":"02060A121F0202",
+    "5":"1F101E0101110E","6":"0608101E11110E","7":"1F010204080808","8":"0E11110E11110E","9":"0E11110F01020C",
+    "A":"0E11111F111111","B":"1E11111E11111E","C":"0E11101010110E","D":"1E11111111111E","E":"1F10101E10101F",
+    "F":"1F10101E101010","G":"0E11101711110E","H":"1111111F111111","I":"0E04040404040E","J":"0702020202120C",
+    "K":"11121418141211","L":"1010101010101F","M":"111B1515111111","N":"11191513111111","O":"0E11111111110E",
+    "P":"1E11111E101010","Q":"0E11111115120D","R":"1E11111E141211","S":"0F10100E01011E","T":"1F040404040404",
+    "U":"1111111111110E","V":"11111111110A04","W":"1111111515150A","X":"11110A040A1111","Y":"11110A04040404",
+    "Z":"1F01020408101F"," ":"00000000000000","'":"04040800000000",":":"00040400040400",".":"00000000000004",
+    ",":"00000000000408","-":"0000001F000000","/":"01020408101000","!":"04040404040004","?":"0E110102040004",
+    "(":"02040808080402",")":"08040202020408","&":"0C12120C15110D","\"":"0A0A0A00000000",";":"00040400040408",
+    "+":"0004041F040400","=":"00001F001F0000","*":"00150E1F0E1500","<":"02040810080402",">":"08040201020408",
+    "[":"0E08080808080E","]":"0E02020202020E","#":"0A0A1F0A1F0A0A","%":"19190204081313","~":"0000081506000"+"0"
+  };
+  for(const k in pack){ const h=pack[k], rows=[]; for(let i=0;i<14;i+=2) rows.push(parseInt(h.substr(i,2),16)); FONT[k]=rows; }
+})();
+function textWidth(str,s){ return String(str).length*6*(s||1); }
+function drawText(g,str,x,y,opt){
+  opt=opt||{};
+  const s=opt.s||1, col=opt.c||"#fbf1dc", align=opt.align||"left", shadow=opt.shadow;
+  str=String(str).toUpperCase();
+  const w=str.length*6*s;
+  let ox=x; if(align==="center") ox=Math.round(x-w/2); if(align==="right") ox=Math.round(x-w);
+  const oy=Math.round(y);
+  for(let n=0;n<str.length;n++){
+    const rows=FONT[str[n]]; const px=ox+n*6*s; if(!rows) continue;
+    if(shadow){ g.fillStyle=shadow; for(let j=0;j<7;j++) for(let i=0;i<5;i++) if(rows[j]&(1<<(4-i))) g.fillRect(px+i*s+s, oy+j*s+s, s, s); }
+    g.fillStyle=col; for(let j=0;j<7;j++) for(let i=0;i<5;i++) if(rows[j]&(1<<(4-i))) g.fillRect(px+i*s, oy+j*s, s, s);
+  }
+  return w;
+}
+function wrap(str, maxChars){
+  const out=[]; String(str).split("\n").forEach(par=>{
+    const words=par.split(" "); let cur="";
+    for(const w of words){ if(!cur.length) cur=w; else if((cur+" "+w).length<=maxChars) cur+=" "+w; else { out.push(cur); cur=w; } }
+    out.push(cur);
+  });
+  return out;
+}
+
+/* ---- audio: original chiptune, starts only after first input ---- */
+let actx=null, master=null, noiseBuf=null, muted=false;
+try{ muted=localStorage.getItem("vinecrownMute")==="1"; }catch(e){}
+function ensureAudio(){
+  if(!actx){
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+    try{ actx=new AC(); }catch(e){ return null; }
+    master=actx.createGain(); master.gain.value=muted?0:0.1; master.connect(actx.destination);
+    noiseBuf=actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+    const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+  }
+  if(actx.state==="suspended") void actx.resume();
+  return actx;
+}
+function setMuted(m){
+  muted=!!m;
+  try{ localStorage.setItem("vinecrownMute", muted?"1":"0"); }catch(e){}
+  if(master){ const t=actx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(muted?0:0.1,t,0.04); }
+  const b=document.getElementById("mute"); b.textContent=muted?"MUTE":"BGM"; b.classList.toggle("off",muted);
+  b.setAttribute("aria-label", muted?"Unmute":"Mute");
+}
+setMuted(muted);
+function midi(n){ return 440*Math.pow(2,(n-69)/12); }
+function tone(type,freq,t,dur,vol,opt){
+  if(!actx||muted) return; opt=opt||{};
+  const o=actx.createOscillator(), g=actx.createGain(), f=actx.createBiquadFilter();
+  o.type=type; o.frequency.setValueAtTime(freq,t);
+  if(opt.slide) o.frequency.exponentialRampToValueAtTime(Math.max(20,opt.slide), t+dur);
+  if(opt.vib){ const l=actx.createOscillator(), lg=actx.createGain(); l.frequency.value=opt.vib; lg.gain.value=freq*0.012; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t+dur+0.05); }
+  f.type="lowpass"; f.frequency.value=opt.lp||1600;
+  if(opt.pad){ const a=Math.min(dur*0.3,1.2);
+    g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol,t+a);
+    g.gain.setValueAtTime(vol,t+dur-a); g.gain.linearRampToValueAtTime(0.0001,t+dur);
+  } else { g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.015); g.gain.exponentialRampToValueAtTime(0.0001,t+dur); }
+  o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.05);
+}
+function noise(t,dur,vol,lp,hp){
+  if(!actx||muted) return;
+  const s=actx.createBufferSource(); s.buffer=noiseBuf;
+  const f=actx.createBiquadFilter(); f.type="lowpass"; f.frequency.value=lp||800;
+  const h=actx.createBiquadFilter(); h.type="highpass"; h.frequency.value=hp||40;
+  const g=actx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol,t+Math.min(0.08,dur/3)); g.gain.linearRampToValueAtTime(0.0001,t+dur);
+  s.connect(f); f.connect(h); h.connect(g); g.connect(master); s.start(t); s.stop(t+dur+0.05);
+}
+/* Tracks: [beat, midi, durBeats, wave, vol, pad?] — all original compositions */
+const TRACKS={
+  void:{bpm:50,len:16,notes:[
+    [0,38,16,"sine",0.12,1],[0,45,16,"sine",0.05,1],[8,50,8,"triangle",0.025,1],
+    [2,74,2,"triangle",0.045],[5,75,3,"triangle",0.04],[9,77,2,"triangle",0.04],[12,74,2.5,"triangle",0.045],[14.5,69,1.5,"triangle",0.035],
+    [0,86,0.4,"sine",0.02],[6,87,0.4,"sine",0.018],[10,93,0.3,"sine",0.012]]},
+  night:{bpm:84,len:16,notes:[
+    [0,69,.5,"triangle",.08],[.5,72,.5,"triangle",.08],[1,76,1,"triangle",.08],[2,74,.5,"triangle",.07],[2.5,72,.5,"triangle",.07],[3,71,1,"triangle",.07],
+    [4,69,.5,"triangle",.08],[4.5,71,.5,"triangle",.07],[5,72,1,"triangle",.07],[6,64,2,"triangle",.07],
+    [8,69,.5,"triangle",.08],[8.5,72,.5,"triangle",.08],[9,76,1,"triangle",.08],[10,77,.5,"triangle",.07],[10.5,76,.5,"triangle",.07],[11,74,1,"triangle",.07],
+    [12,72,1,"triangle",.07],[13,71,1,"triangle",.07],[14,69,2,"triangle",.07],
+    [0,45,.8,"square",.03],[2,52,.8,"square",.03],[4,45,.8,"square",.03],[6,52,.8,"square",.03],[8,41,.8,"square",.03],[10,48,.8,"square",.03],[12,40,.8,"square",.03],[14,47,.8,"square",.03]]},
+  tender:{bpm:66,len:16,notes:[
+    [0,64,2,"triangle",.075],[2,67,1,"triangle",.07],[3,71,1,"triangle",.07],[4,69,3,"triangle",.075],[7,67,1,"triangle",.06],
+    [8,66,2,"triangle",.07],[10,67,1,"triangle",.065],[11,64,1,"triangle",.065],[12,62,3,"triangle",.07],[15,59,1,"triangle",.06],
+    [0,40,8,"sine",.07,1],[8,38,8,"sine",.07,1],[0,52,8,"triangle",.02,1],[8,50,8,"triangle",.02,1]]},
+  sorrow:{bpm:54,len:16,notes:[
+    [0,71,2,"triangle",.07],[2,69,1,"triangle",.06],[3,67,1,"triangle",.06],[4,66,4,"triangle",.07],
+    [8,67,2,"triangle",.065],[10,64,2,"triangle",.06],[12,62,2,"triangle",.06],[14,64,2,"triangle",.06],
+    [0,40,8,"sine",.08,1],[8,35,8,"sine",.08,1],[0,55,8,"triangle",.018,1],[8,54,8,"triangle",.018,1]]},
+  cave:{bpm:60,len:16,notes:[
+    [0,33,16,"sine",.13,1],[0,40,16,"triangle",.018,1],[0,33,.5,"sine",.09],[0.6,33,.5,"sine",.06],[8,33,.5,"sine",.09],[8.6,33,.5,"sine",.06],
+    [3,81,.6,"sine",.025],[7,80,.6,"sine",.022],[11,86,.5,"sine",.018],[13,75,1.5,"triangle",.025],[15,74,.5,"sine",.015]]},
+  chase:{bpm:138,len:8,notes:[
+    [0,38,.45,"square",.05],[.5,38,.45,"square",.04],[1,39,.45,"square",.05],[1.5,38,.45,"square",.04],[2,38,.45,"square",.05],[2.5,41,.45,"square",.04],[3,39,.45,"square",.05],[3.5,38,.45,"square",.04],
+    [4,38,.45,"square",.05],[4.5,38,.45,"square",.04],[5,39,.45,"square",.05],[5.5,38,.45,"square",.04],[6,44,.45,"square",.05],[6.5,43,.45,"square",.04],[7,39,.45,"square",.05],[7.5,38,.45,"square",.04],
+    [0,86,.3,"square",.018],[2,87,.3,"square",.016],[4,86,.3,"square",.018],[6,92,.3,"square",.014],[0,26,8,"sine",.1,1]]},
+  hollow:{bpm:48,len:16,notes:[
+    [0,36,16,"sine",.12,1],[0,43,16,"triangle",.02,1],[0,36,.4,"sine",.1],[0.5,36,.4,"sine",.07],[4,36,.4,"sine",.1],[4.5,36,.4,"sine",.07],
+    [8,36,.4,"sine",.1],[8.5,36,.4,"sine",.07],[12,36,.4,"sine",.1],[12.5,36,.4,"sine",.07],
+    [2,72,2,"triangle",.04],[6,75,2,"triangle",.04],[10,79,2,"triangle",.035],[14,78,2,"triangle",.03]]}
+};
+let curTrack=null, wantTrack=null, trT0=0, schedTo=0;
+function playTrack(name){
+  wantTrack=name;
+  if(!actx || curTrack===name) return;
+  curTrack=name; trT0=actx.currentTime+0.08; schedTo=trT0;
+}
+function tickMusic(){
+  if(!actx) return;
+  if(wantTrack!==curTrack) playTrack(wantTrack);
+  const now=actx.currentTime;
+  if(muted||!curTrack){ schedTo=now; return; }
+  if(schedTo<now) schedTo=now;
+  const tr=TRACKS[curTrack]; const spb=60/tr.bpm, L=tr.len*spb;
+  const horizon=now+0.3;
+  if(schedTo>=horizon) return;
+  const from=schedTo, to=horizon;
+  const k0=Math.floor((from-trT0)/L);
+  for(let k=k0;k<=k0+1;k++){ const base=trT0+k*L;
+    for(const n of tr.notes){ const st=base+n[0]*spb;
+      if(st>=from && st<to) tone(n[3], midi(n[1]), st, n[2]*spb*(n[5]?1:0.92), n[4], n[5]?{pad:1}:null); } }
+  schedTo=to;
+}
+const sfx={
+  blip(f){ if(!actx) return; tone("square", f, actx.currentTime, 0.035, 0.012, {lp:2200}); },
+  select(){ if(!actx) return; const t=actx.currentTime; tone("square",660,t,0.06,0.03); tone("square",990,t+0.05,0.08,0.025); },
+  move(){ if(!actx) return; tone("square",440,actx.currentTime,0.04,0.02); },
+  shard(){ if(!actx) return; const t=actx.currentTime; [72,76,79,84,88].forEach((n,i)=>tone("triangle",midi(n),t+i*0.07,0.4,0.06)); },
+  jar(){ if(!actx) return; const t=actx.currentTime; tone("sine",880,t,0.15,0.05); tone("sine",1320,t+0.06,0.2,0.04); },
+  rune(i){ if(!actx) return; const t=actx.currentTime; tone("sine",midi(69+[0,3,7,12][i%4]),t,0.6,0.07,{vib:5}); },
+  wrong(){ if(!actx) return; const t=actx.currentTime; tone("sawtooth",110,t,0.5,0.05,{slide:60,lp:600}); noise(t,0.7,0.06,900,200); },
+  gate(){ if(!actx) return; const t=actx.currentTime; noise(t,1.4,0.12,300,30); tone("sine",55,t,1.4,0.08,{slide:40}); },
+  shift(){ if(!actx) return; const t=actx.currentTime; tone("sine",220,t,0.6,0.05,{slide:880}); tone("triangle",1760,t+0.1,0.5,0.02,{slide:440}); noise(t,0.5,0.03,4000,1000); },
+  sting(){ if(!actx) return; const t=actx.currentTime; tone("sawtooth",midi(74),t,0.7,0.035,{lp:1200,vib:9}); tone("sawtooth",midi(75),t,0.7,0.035,{lp:1200,vib:7}); noise(t,0.6,0.05,2500,600); },
+  caught(){ if(!actx) return; const t=actx.currentTime; tone("sine",440,t,1.6,0.06,{slide:55}); noise(t,1.6,0.05,600,60); },
+  heart(){ if(!actx) return; const t=actx.currentTime; tone("sine",58,t,0.18,0.14); tone("sine",52,t+0.22,0.22,0.11); },
+  push(){ if(!actx) return; noise(actx.currentTime,0.25,0.05,400,60); },
+  hide(){ if(!actx) return; noise(actx.currentTime,0.3,0.03,1500,300); }
+};
+
+/* ---- input ---- */
+const keys={}, pad={u:false,d:false,l:false,r:false};
+const pressed=new Set();
+let audioPrimed=false;
+function prime(){ if(!audioPrimed){ audioPrimed=true; } ensureAudio(); if(wantTrack) playTrack(wantTrack); }
+function take(a){ if(pressed.has(a)){ pressed.delete(a); return true; } return false; }
+const KEYMAP={"enter":"a"," ":"a","z":"a","e":"a","x":"b","q":"b","backspace":"b","escape":"menu","p":"menu",
+  "arrowup":"up","w":"up","arrowdown":"down","s":"down","arrowleft":"left","a":"left","arrowright":"right","d":"right"};
+window.addEventListener("keydown", ev=>{
+  const k=(ev.key||"").toLowerCase();
+  keys[k]=true; prime();
+  if(KEYMAP[k]!==undefined || k==="m") ev.preventDefault();
+  if(ev.repeat) return;
+  if(KEYMAP[k]) pressed.add(KEYMAP[k]);
+  if(k==="m"){ setMuted(!muted); }
+});
+window.addEventListener("keyup", ev=>{ keys[(ev.key||"").toLowerCase()]=false; });
+window.addEventListener("blur", ()=>{ for(const k in keys) keys[k]=false; pad.u=pad.d=pad.l=pad.r=false; });
+function held(dir){
+  if(dir==="u") return pad.u||keys.arrowup||keys.w;
+  if(dir==="d") return pad.d||keys.arrowdown||keys.s;
+  if(dir==="l") return pad.l||keys.arrowleft||keys.a;
+  return pad.r||keys.arrowright||keys.d;
+}
+function bindBtn(id, onDown, holdKey){
+  const el=document.getElementById(id);
+  const on=ev=>{ ev.preventDefault(); ev.stopPropagation(); prime(); el.classList.add("held"); if(holdKey) pad[holdKey]=true; onDown&&onDown(); };
+  const off=ev=>{ ev.preventDefault(); el.classList.remove("held"); if(holdKey) pad[holdKey]=false; };
+  el.addEventListener("pointerdown",on); el.addEventListener("pointerup",off);
+  el.addEventListener("pointerleave",off); el.addEventListener("pointercancel",off);
+  el.addEventListener("contextmenu",ev=>ev.preventDefault());
+}
+bindBtn("btnU",()=>pressed.add("up"),"u"); bindBtn("btnD",()=>pressed.add("down"),"d");
+bindBtn("btnL",()=>pressed.add("left"),"l"); bindBtn("btnR",()=>pressed.add("right"),"r");
+bindBtn("btnA",()=>pressed.add("a")); bindBtn("btnB",()=>pressed.add("b"));
+document.getElementById("menuBtn").addEventListener("click",ev=>{ ev.preventDefault(); prime(); pressed.add("menu"); cv.focus(); });
+document.getElementById("mute").addEventListener("click",ev=>{ ev.preventDefault(); prime(); setMuted(!muted); cv.focus(); });
+document.getElementById("hubBtn").addEventListener("click",()=>{ if(G.attr) saveGame(); });
+let tapQ=null;
+cv.addEventListener("pointerdown", ev=>{
+  ev.preventDefault(); prime(); cv.focus();
+  const r=cv.getBoundingClientRect();
+  tapQ={x:(ev.clientX-r.left)/r.width*VW, y:(ev.clientY-r.top)/r.height*VH};
+});
+const touchy=("ontouchstart" in window)||(navigator.maxTouchPoints>0)||(window.matchMedia&&window.matchMedia("(pointer:coarse)").matches);
+if(touchy) document.body.classList.add("touch");
+
+/* ---- save ---- */
+const SAVE_KEY="vinecrownSaveV1";
+const GAMES={
+  firefly:{name:"LEON'S FIREFLY CONTEST", href:"firefly.html", col:"#b8ff64", rgb:[184,255,100]},
+  star:{name:"STAR TEAM CYPHER ENGINE", href:"star-team.html", col:"#7fd3ff", rgb:[127,211,255]},
+  descent:{name:"LEON: THE DESCENT", href:"descent.html", col:"#c89cff", rgb:[200,156,255]},
+  colosseum:{name:"LEON: THE COLOSSEUM", href:"colosseum.html", col:"#ffb347", rgb:[255,179,71]},
+  under:{name:"THE UNDER: A LION'S DESCENT", href:"under.html", col:"#ff6a4a", rgb:[255,106,74]}
+};
+const GAME_ORDER=["firefly","star","descent","colosseum","under"];
+function freshState(){
+  return {v:1, attr:null, jars:1, light:100, shards:[], cp:{x:4*TS+8,y:5*TS+12}, runeSolved:false, platesSolved:false,
+    bramble:false, hushSeen:false, ch1Done:false, secret:false, firstShard:false, tutorial:false};
+}
+let G=freshState();
+function loadSave(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)||"null"); if(s&&s.v===1) return Object.assign(freshState(),s); }catch(e){} return null; }
+function saveGame(){
+  try{ const out=Object.assign({},G,{unlocked:G.shards.slice(), savedAt:Date.now()}); localStorage.setItem(SAVE_KEY, JSON.stringify(out)); }catch(e){}
+}
+
+/* ---- portraits (36x36 art space). f = animation frame (0/1), t = time ---- */
+const PORT={};
+function eye(p,x,y,open,iris){
+  if(open){ p(x-1,y,3,1,"#fffbe8"); p(x,y,1,1,iris||"#1a1208"); p(x-1,y-1,3,1,"#c8a040"); p(x-1,y+1,3,1,"#8a6a20"); }
+  else p(x-1,y,3,1,"#c8a040");
+}
+PORT.hal_uncanny=function(p,f,t){
+  // halo dither
+  for(let i=0;i<64;i++){ const a=i/64*Math.PI*2+t*0.15; const r=17;
+    if(i%2===0) p(18+Math.cos(a)*r,18+Math.sin(a)*r,1,1,"#6a5420"); }
+  // six wings radiating
+  for(let k=0;k<3;k++){
+    const base=-0.35+k*0.55+Math.sin(t*1.3+k)*0.05;
+    for(const side of [-1,1]){
+      const a=side<0? Math.PI-base : base;
+      for(let r=7;r<17;r++){ const x=18+Math.cos(a)*r, y=17-Math.sin(a)*r*0.8+(k-1)*3;
+        p(x,y,1,1,r>14?"#ffffff":"#e8dcb0"); p(x,y+1,1,1,"#b8a878"); }
+    }
+  }
+  // two rotating rings with eyes
+  const rings=[[15,5,t*0.6],[5,15,-t*0.5]];
+  rings.forEach((rg,ri)=>{
+    const [rx,ry,rot]=rg, c=Math.cos(rot*0.3), s=Math.sin(rot*0.3);
+    for(let i=0;i<72;i++){ const a=i/72*Math.PI*2; const x=Math.cos(a)*rx, y=Math.sin(a)*ry;
+      p(18+x*c-y*s, 18+x*s+y*c, 1,1, ri? "#ffd86a":"#f4c040"); }
+    for(let k=0;k<5;k++){ const a=k/5*Math.PI*2+rot; const x=Math.cos(a)*rx, y=Math.sin(a)*ry;
+      const open=((k+ri*2+Math.floor(t*1.4))%6)!==0;
+      eye(p,18+x*c-y*s,18+x*s+y*c,open); }
+  });
+  // radiant core with owl face
+  disc(p,18,18,7,7,"#fff0c0"); disc(p,18,18,5.5,5.5,"#ffe08a");
+  const look=Math.round(Math.sin(t*0.7));
+  disc(p,15,17,2.2,2.2,"#fffbe8"); disc(p,21,17,2.2,2.2,"#fffbe8");
+  if(f&&((Math.floor(t*2))%4===0)){ p(13,17,5,1,"#a07820"); p(19,17,5,1,"#a07820"); }
+  else { p(15+look,17,1,1,"#2a1a08"); p(21+look,17,1,1,"#2a1a08"); p(14+look,16,1,1,"#ffd040"); p(20+look,16,1,1,"#ffd040"); }
+  // third eye
+  p(18,12,1,3,"#fffbe8"); p(18,13,1,1,"#2a1a08");
+  p(17,20,3,1,"#c89030"); p(18,21,1,1,"#c89030");
+  if(f) p(17,21,3,1,"#7a5010");
+};
+PORT.hal_comfort=function(p,f,t){
+  const bob=Math.round(Math.sin(t*2)*0.6);
+  p(10,6+bob,2,4,"#6a4a2c"); p(24,6+bob,2,4,"#6a4a2c"); p(11,5+bob,1,2,"#8e6a46"); p(25,5+bob,1,2,"#8e6a46");
+  disc(p,6,25,4,8,"#6a4a30"); disc(p,30,25,4,8,"#6a4a30");
+  disc(p,18,24,12,11,"#7a5a3c");
+  disc(p,18,15+bob,12,9,"#8e6a46");
+  disc(p,18,28,7,6,"#d9c4a0");
+  for(let i=0;i<3;i++){ p(15+i*2,26+i%2*2,1,1,"#a8906a"); p(16+i*2,30-i%2,1,1,"#a8906a"); }
+  disc(p,13,15+bob,5,4.5,"#d9bf98"); disc(p,23,15+bob,5,4.5,"#d9bf98");
+  const blink=(Math.floor(t*0.8)%5===0) && (t%1.25<0.18);
+  if(blink){ p(11,15+bob,5,1,"#4a3420"); p(21,15+bob,5,1,"#4a3420"); p(10,14+bob,1,1,"#4a3420"); p(26,14+bob,1,1,"#4a3420"); }
+  else {
+    disc(p,13,15+bob,3,3,"#f0b030"); disc(p,23,15+bob,3,3,"#f0b030");
+    disc(p,13,15+bob,1.5,1.5,"#1a1008"); disc(p,23,15+bob,1.5,1.5,"#1a1008");
+    p(12,13+bob,1,1,"#fffbe8"); p(22,13+bob,1,1,"#fffbe8");
+  }
+  tri(p,16.5,18+bob,20.5,18+bob,18.5,22+bob,"#e8a840");
+  if(f) p(17,21+bob,3,1,"#5a3010");
+  p(8,19+bob,2,1,"#d88a80"); p(27,19+bob,2,1,"#d88a80");
+};
+PORT.hal_dread=function(p,f,t){
+  for(let i=0;i<40;i++){ const x=hash(i,7)*36, y=hash(i,9)*36; if((i+Math.floor(t*3))%5===0) p(x,y,1,1,"#2a1030"); }
+  tri(p,18,14,-1,3,1,36,"#140a1e"); tri(p,18,14,37,3,35,36,"#140a1e");
+  for(let i=0;i<8;i++){ p(1+i*2,4+i*3.5,1,2,"#2e1a40"); p(34-i*2,4+i*3.5,1,2,"#2e1a40"); }
+  disc(p,18,23,8,14,"#0a0510");
+  tri(p,11,10,15,12,8,-1,"#0a0510"); tri(p,25,10,21,12,28,-1,"#0a0510");
+  disc(p,18,13,7,6,"#0a0510");
+  const glow=f?"#ff6a80":"#ff3050";
+  p(12,13,4,1,glow); p(21,13,4,1,glow); p(13,12,2,1,"#801830"); p(22,12,2,1,"#801830");
+  for(let k=0;k<6;k++){ if((k+Math.floor(t*2))%3) p(5+k*5,20+((k*7)%9),1,1,"#7a1a3a"); }
+  p(17,17,2,1,"#3a1a20");
+};
+function forceMist(p,t,cx,cy){ for(let i=0;i<70;i++){ const a=hash(i,3)*6.283, r=hash(i,5)*16; if((i+Math.floor(t*2))%3) p(cx+Math.cos(a)*r, cy+Math.sin(a)*r*1.1,1,1,"#262038"); } }
+PORT.force1=function(p,f,t){
+  forceMist(p,t,18,20);
+  disc(p,18,27,7,12,"#08060c"); disc(p,18,12,5,5,"#08060c");
+  line(p,15,9,11,2,"#08060c"); line(p,12,5,9,4,"#08060c"); line(p,21,9,25,2,"#08060c"); line(p,24,5,27,4,"#08060c");
+  line(p,11,2,10,0,"#08060c"); line(p,25,2,26,0,"#08060c");
+  for(let y=10;y<34;y+=2) p(11+Math.abs(y-22)*0.12,y,1,1,"#3a3450");
+  if(!(f && Math.floor(t*3)%3===0)){ p(16,12,1,1,"#9ff0ff"); p(20,12,1,1,"#9ff0ff"); }
+};
+PORT.force2=function(p,f,t){
+  forceMist(p,t,18,18);
+  for(let i=0;i<9;i++){ const y=32-i*3.2; const x=18+Math.sin(i*0.9+t*1.4)*5; disc(p,x,y,4.5-i*0.2,2.6,"#0a0810"); }
+  const ex=18+Math.sin(8*0.9+t*1.4)*5;
+  p(ex-1,7,3,1, f?"#ffe080":"#ffc040");
+  p(ex-6,18,1,1,"#2a2236"); p(ex+5,24,1,1,"#2a2236");
+};
+PORT.force3=function(p,f,t){
+  forceMist(p,t,18,24);
+  disc(p,18,29,15,10,"#070509"); disc(p,18,22,9,6,"#070509");
+  const eyes=[[12,23],[15,21],[18,20],[21,21],[24,23],[16,26],[20,26]];
+  eyes.forEach((e,i)=>{ if((i+Math.floor(t*2.5))%4!==0) p(e[0],e[1],1,1,"#ff4848"); });
+  for(let x=4;x<33;x+=3) p(x,33,1,1,"#1e1a26");
+};
+PORT.bramble=function(p,f,t){
+  disc(p,8,9,3.5,3.5,"#5a5a70"); disc(p,28,9,3.5,3.5,"#5a5a70"); disc(p,8,9,1.6,1.6,"#2a2834"); disc(p,28,9,1.6,1.6,"#2a2834");
+  disc(p,18,19,13,12,"#8a8aa0"); disc(p,10,24,5,4,"#a8a8bc"); disc(p,26,24,5,4,"#a8a8bc");
+  disc(p,11,17,4,6,"#22202c"); disc(p,25,17,4,6,"#22202c");
+  p(16,5,4,17,"#f0f0f4"); disc(p,18,24,4,3.5,"#f0f0f4");
+  const squint = f || (Math.floor(t*0.7)%3===0);
+  p(10,16,3,1,"#f0f0f4"); if(squint) p(24,16,3,1,"#8a8aa0"); else { p(24,15,3,2,"#f0f0f4"); p(25,16,1,1,"#111"); }
+  p(11,16,1,1,"#111");
+  disc(p,18,26,2.5,1.8,"#111"); p(17,25,1,1,"#555");
+  p(15,29,2,1,"#2a2834"); p(17,30,4,1,"#2a2834"); p(21,29,1,1,"#2a2834");
+  // brambles tangled across the head
+  let px_=3, py_=7; for(let x=3;x<34;x++){ const y=Math.round(7+Math.sin(x*0.45)*2); line(p,px_,py_,x,y,"#4a3a20"); px_=x; py_=y;
+    if(x%4===0) p(x,y-1,1,1,"#7a6a40"); if(x%7===2){ p(x,y+1,2,1,"#3f7a3a"); } if(x%9===4) p(x,y-2,1,1,"#c03040"); }
+  // the suspiciously full jar
+  p(27,27,8,9,"#2a3a4a"); p(28,28,6,8,"#16242e"); p(27,26,8,2,"#8a6a3a");
+  for(let i=0;i<5;i++){ const on=((i+Math.floor(t*4))%3)!==0; if(on) p(28+((i*3+Math.floor(t*2))%6), 29+((i*5)%6),1,1,"#f8ffb0"); }
+};
+PORT.cub=function(p,f,t){
+  tri(p,5,3,15,10,5,15,"#c89050"); tri(p,31,3,21,10,31,15,"#c89050");
+  tri(p,7,6,13,10,7,13,"#e8b8a0"); tri(p,29,6,23,10,29,13,"#e8b8a0");
+  p(5,3,2,2,"#3a2a1a"); p(30,3,2,2,"#3a2a1a");
+  disc(p,18,20,12.5,11,"#d4a464"); disc(p,18,25,11,7,"#d4a464");
+  [[11,13],[14,11],[22,11],[25,13],[9,20],[27,20],[12,24],[24,24],[18,10]].forEach(s=>p(s[0],s[1],2,1,"#9a6a3a"));
+  disc(p,18,26,6,4,"#f2e2c4");
+  const blink=(t%2.6)<0.15;
+  if(blink){ p(10,19,6,1,"#3a2a1a"); p(21,19,6,1,"#3a2a1a"); }
+  else { disc(p,12.5,19,3.4,3.4,"#f8f4e8"); disc(p,23.5,19,3.4,3.4,"#f8f4e8"); disc(p,12.5,19,2.6,2.8,"#8ab4cc"); disc(p,23.5,19,2.6,2.8,"#8ab4cc");
+    disc(p,12.5,19.5,1.3,1.6,"#10141a"); disc(p,23.5,19.5,1.3,1.6,"#10141a"); p(11,17,1,1,"#fff"); p(22,17,1,1,"#fff"); }
+  tri(p,16,23,20,23,18,25,"#c87878");
+  p(18,25,1,2,"#3a2a1a"); p(16,27,2,1,"#3a2a1a"); p(19,27,2,1,"#3a2a1a");
+  if(f) p(17,28,3,1,"#8a3a3a");
+  p(8,22,3,1,"#e09a8a"); p(25,22,3,1,"#e09a8a");
+  for(let i=0;i<4;i++){ const sy=((t*6+i*9)%36); p((i*11+5)%36, sy,1,1,"#e8f0ff"); }
+};
+PORT.felix=function(p,f,t){
+  // shoulders + chest
+  disc(p,18,34,13,6,"#c8945a"); p(10,27,17,9,"#c8945a"); disc(p,18,32,5,4,"#f0dcb8");
+  tri(p,7,1,15,9,7,13,"#c8945a"); tri(p,29,1,21,9,29,13,"#c8945a");
+  tri(p,9,5,13,9,9,11,"#e0b898"); tri(p,27,5,23,9,27,11,"#e0b898");
+  p(7,1,2,3,"#1a1010"); p(28,1,2,3,"#1a1010");
+  disc(p,18,17,11,10,"#c8945a"); disc(p,18,22,9,6,"#c8945a");
+  p(12,8,1,3,"#9a6a3a"); p(24,8,1,3,"#9a6a3a"); p(18,7,1,4,"#9a6a3a");
+  disc(p,18,23,5.5,3.6,"#f0dcb8");
+  p(12,22,2,2,"#2a1a10"); p(23,22,2,2,"#2a1a10");
+  p(11,18,4,1,"#f0dcb8"); p(22,18,4,1,"#f0dcb8");
+  const blink=(t%3.1)<0.14;
+  if(blink){ p(11,16,5,1,"#2a1a10"); p(21,16,5,1,"#2a1a10"); }
+  else { disc(p,13,16,2.6,1.8,"#d8b440"); disc(p,23,16,2.6,1.8,"#d8b440"); p(13,15,1,3,"#100c08"); p(23,15,1,3,"#100c08");
+    p(11,15,1,1,"#2a1a10"); p(25,15,1,1,"#2a1a10"); p(12,14,3,1,"#2a1a10"); p(22,14,3,1,"#2a1a10"); }
+  p(17,20,3,2,"#b06a60"); p(18,22,1,1,"#2a1a10");
+  // crooked grin: lifts on his right side
+  if(f){ p(15,24,1,1,"#2a1a10"); p(16,25,5,2,"#3a1010"); p(21,24,1,1,"#2a1a10"); p(22,23,1,1,"#2a1a10"); p(20,25,1,1,"#fff8f0"); }
+  else { p(15,24,1,1,"#2a1a10"); p(16,25,4,1,"#2a1a10"); p(20,24,1,1,"#2a1a10"); p(21,23,1,1,"#2a1a10"); p(19,25,1,1,"#fff8f0"); }
+  // feather necklace + red bead
+  for(let x=11;x<=25;x++){ const y=Math.round(27+ (1-Math.pow((x-18)/7,2))*2.5); p(x,y,1,1,"#5a3a20"); }
+  const fe=[[12,"#e8e8f0","#9aa0b0"],[15,"#a07850","#6a4a30"],[21,"#c8d0e0","#7a8aa0"],[24,"#e8e8f0","#9aa0b0"]];
+  fe.forEach((q,i)=>{ const x=q[0], y=Math.round(28+ (1-Math.pow((x-18)/7,2))*2.5); const sw=Math.round(Math.sin(t*2+i)*0.5);
+    p(x+sw,y+1,1,4,q[1]); p(x+1+sw,y+2,1,2,q[2]); p(x-1+sw,y+2,1,1,q[2]); });
+  p(17,30,2,2,"#e02a3a"); if((t%2)<1.2) p(17,30,1,1,"#ff9a9a");
+};
+function portraitDraw(g,key,x,y,s,f,t){ const fn=PORT[key]; if(fn) fn(painter(g,x,y,s),f,t); }
+
+/* ---- world sprites ---- */
+const OUT="#0a0608";
+const FELIX_PAL={T:"#c8945a",t:"#9a6a3a",c:"#f0dcb8",k:"#1a1010",e:"#e8d040",r:"#e02a3a",w:"#e8e8f0",n:"#c87070"};
+const FELIX_TOP=[
+"..........kT.Tk.",
+"..........TTTTT.",
+"k........TTeTTc.",
+"kt.......TTTTccn",
+".t.......TTTckk.",
+".tt..tTTTwrwTT..",
+"..tTTTTTTTTTTT..",
+"...TTTTTTTTTTT..",
+"...TcccccccccT.."];
+const FELIX_A=["...TT.T....T.TT.","...kk.k....k.kk."];
+const FELIX_B=["....TT.T..TT.T..","....kk.k..kk.k.."];
+const felixR=[makeSprite(FELIX_TOP.concat(FELIX_A),FELIX_PAL,OUT), makeSprite(FELIX_TOP.concat(FELIX_B),FELIX_PAL,OUT)];
+const felixL=felixR.map(flipH);
+const WOLF_ROWS=[
+"..............kk..",
+".............kkkk.",
+"k...........kkkekk",
+"kk.kkkkkkkkkkkkk..",
+".kkkkkkkkkkkkkk...",
+"..kkkkkkkkkkkkk...",
+"..kk.kk....kk.kk..",
+"..k..k......k..k.."];
+const wolfSpr=makeSprite(WOLF_ROWS,{k:"#2e3650",e:"#c8e0ff"},"#141828");
+const wolfSprL=flipH(wolfSpr);
+const CUB_ROWS=["......k.k.",".....TTTT.","t....TeTTc",".t.TTTTTT.","..TTsTTsT.","..TT.T.TT."];
+const cubSpr=makeSprite(CUB_ROWS,{T:"#d4a464",t:"#9a6a3a",s:"#9a6a3a",k:"#3a2a1a",e:"#8ab4cc",c:"#f2e2c4"},"#1a1010");
+const BIRD_A=makeSprite([".b.b.","bbbbb","..b.."],{b:"#c8d8f0"},null);
+const BIRD_B=makeSprite(["b...b",".bbb.","..b.."],{b:"#c8d8f0"},null);
+const BADGER_ROWS=["........KWK...","...gggg.KWWK..","..ggggggKWWKK.",".gggggggKWEWKN",".ggggggggKWWK.",".gggggggggg...",".ggGGGGGGgg...","..kk..kk.kk..."];
+const badgerSpr=makeSprite(BADGER_ROWS,{g:"#8a8aa0",G:"#a8a8bc",K:"#22202c",W:"#f0f0f4",E:"#22202c",N:"#111",k:"#3a3848"},OUT);
+const GLYPHS={
+  moon:   ["..###..",".##....","##.....","##.....","##.....",".##....","..###.."],
+  feather:["......#",".....##","....###","...###.","..###..",".#.#...","#......"],
+  wolf:   [".#.#.#.","#.....#","..###..",".#####.",".#####.","..###..","......."],
+  vine:   ["..###..",".#...#.",".#.#.#.",".#..##.","..#....","...#...","..##..."]
+};
+function drawGlyph(g,x,y,name,col){ const rows=GLYPHS[name]; g.fillStyle=col; for(let j=0;j<7;j++) for(let i=0;i<7;i++) if(rows[j][i]==="#") g.fillRect(x+i,y+j,1,1); }
+
+/* ---- map ---- */
+const MW=40, MH=30;
+const MAP=[]; for(let y=0;y<MH;y++) MAP.push(new Array(MW).fill("#"));
+function carve(x0,y0,x1,y1,ch){ for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) MAP[y][x]=ch||"."; }
+function put(x,y,ch){ MAP[y][x]=ch; }
+carve(1,1,7,6);            // A: root den (start)
+carve(4,7,4,9);
+carve(12,1,22,7);          // B: rune chamber
+carve(17,8,17,9);
+carve(1,10,28,20);         // D: hushing halls
+carve(6,13,11,17,"#"); carve(16,13,23,17,"#");
+carve(4,21,4,21); carve(1,22,8,28);   // N: bramblewick's nook
+carve(10,24,13,27); put(9,25,"C");    // secret alcove behind a cracked wall
+carve(30,1,38,14);         // E: stone gallery (block puzzle)
+put(29,13,"G"); put(29,14,"G");
+put(34,15,"H"); put(35,15,"H");
+carve(30,16,38,28);        // F: heart hollow
+[[2,12],[14,15],[25,11],[5,19],[20,19],[26,16],[12,10],[3,25],[13,13]].forEach(q=>put(q[0],q[1],"h"));
+put(6,2,"T"); put(20,6,"T");
+const LANTERNS=[{x:2,y:2},{x:12,y:6},{x:28,y:20},{x:31,y:12}];
+LANTERNS.forEach(l=>put(l.x,l.y,"L"));
+const RUNES=[{x:13,y:3,g:"vine"},{x:16,y:2,g:"wolf"},{x:19,y:2,g:"moon"},{x:21,y:3,g:"feather"}];
+const RUNE_ORDER=["moon","feather","wolf","vine"];
+RUNES.forEach(r=>put(r.x,r.y,"r"));
+const PLATES=[{x:33,y:3},{x:36,y:12}];
+const BLOCK_START=[{x:33,y:7},{x:36,y:9}];
+put(31,2,"R");
+put(34,25,"X");
+const SHARDS=[
+  {id:"firefly",x:2,y:27},{id:"star",x:22,y:7},{id:"descent",x:12,y:17},{id:"colosseum",x:38,y:14},{id:"under",x:12,y:26}];
+const JARS_START=[{x:7,y:27},{x:11,y:24},{x:37,y:2},{x:1,y:20},{x:22,y:1}];
+const BRAMBLE_POS={x:6,y:24};
+const TABLETS={ "6,2":"den", "20,6":"chamber" };
+function areaAt(tx,ty){
+  if(tx>=1&&tx<=7&&ty>=1&&ty<=9) return "THE ROOT DEN";
+  if(tx>=12&&tx<=22&&ty>=1&&ty<=9) return "THE RUNE CHAMBER";
+  if(ty>=10&&ty<=20&&tx<=28) return "THE HUSHING HALLS";
+  if(tx>=1&&tx<=8&&ty>=21) return "BRAMBLEWICK'S NOOK";
+  if(tx>=9&&tx<=13&&ty>=24) return "A HIDDEN HOLLOW";
+  if(tx>=29&&ty<=15) return "THE STONE GALLERY";
+  if(tx>=30&&ty>=16) return "THE HEART HOLLOW";
+  return "";
+}
+const SOLID_CH="#TLrRX";
+function tileCh(tx,ty){ if(tx<0||ty<0||tx>=MW||ty>=MH) return "#"; return MAP[ty][tx]; }
+
+/* ---- prerendered cave ---- */
+const [worldC,wg]=mk(MW*TS,MH*TS);
+function buildWorld(){
+  const id=wg.createImageData(MW*TS,MH*TS);
+  for(let y=0;y<MH*TS;y++) for(let x=0;x<MW*TS;x++){
+    const tx=x>>4, ty=y>>4, ch=MAP[ty][tx], k=(y*MW*TS+x)*4;
+    const n=hash(x,y), m=hash(x>>2,y>>2);
+    let r,g,b;
+    const wallish = ch==="#"||ch==="C";
+    if(wallish){
+      const below=tileCh(tx,ty+1);
+      const face = below!=="#" && below!=="C";
+      if(face && (y&15)>=4){ // stone face with bricks
+        const by=(y&15), bx=((x+((ty&1)*6))%12);
+        r=46+m*10; g=38+m*8; b=56+m*10;
+        if(by===4||by===10||bx===0){ r-=16; g-=14; b-=16; }
+        if(by===5){ r+=10; g+=8; b+=10; }
+      } else { r=16+m*8; g=12+m*6; b=22+m*8; if(n>0.93){ r+=12; g+=10; b+=14; } }
+    } else {
+      r=30+m*10; g=24+m*8; b=22+m*7;
+      if(n>0.9){ r+=10; g+=8; b+=6; }
+      if(hash(tx*3,ty*7)>0.7 && m>0.6){ g+=10; r-=4; }
+      const ar=areaAt(tx,ty);
+      if(ar==="THE HEART HOLLOW"){ r+=8; g-=4; b-=2; }
+      if(ar==="THE RUNE CHAMBER"){ b+=8; }
+    }
+    id.data[k]=r; id.data[k+1]=g; id.data[k+2]=b; id.data[k+3]=255;
+  }
+  wg.putImageData(id,0,0);
+  const P=painter(wg,0,0,1);
+  for(let ty=0;ty<MH;ty++) for(let tx=0;tx<MW;tx++){
+    const ch=MAP[ty][tx], x=tx*TS, y=ty*TS;
+    if(ch==="#"||ch==="C"){
+      const below=tileCh(tx,ty+1);
+      if(below!=="#"&&below!=="C"){
+        // hanging vines on wall faces
+        for(let v=0;v<3;v++){ if(hash(tx*5+v,ty*3)<0.45) continue; const vx=x+2+Math.floor(hash(tx+v*9,ty)*12); const len=6+Math.floor(hash(tx,ty+v)*10);
+          for(let i=0;i<len;i++){ P(vx+Math.round(Math.sin(i*0.6+v)*1),y+2+i,1,1,i%3?"#2d5a32":"#3f7a3a"); if(i%4===2) P(vx+1,y+2+i,2,1,"#4f9a48"); } }
+        if(ch==="C"){ line(P,x+4,y+5,x+8,y+9,"#0a0610"); line(P,x+8,y+9,x+7,y+14,"#0a0610"); line(P,x+8,y+9,x+12,y+11,"#0a0610"); }
+      }
+    } else {
+      if(hash(tx,ty)>0.8){ const rx=x+3+Math.floor(hash(ty,tx)*9); for(let i=0;i<8;i++) P(rx+i,y+8+Math.round(Math.sin(i)*1.5),1,1,"#3a2a1a"); }
+      if(hash(tx+11,ty+3)>0.85) { P(x+5,y+5,2,1,"#4a4040"); P(x+11,y+10,1,1,"#4a4040"); }
+      if(hash(tx+2,ty+19)>0.9) { P(x+9,y+3,1,2,"#4f9a48"); P(x+8,y+4,1,1,"#4f9a48"); }
+    }
+  }
+  // heart hollow roots converge on the heart stone
+  for(let i=0;i<14;i++){ const a=i/14*Math.PI*2; let px_=34*TS+8, py_=25*TS+8;
+    for(let s=0;s<60;s++){ const nx=px_+Math.cos(a+Math.sin(s*0.2)*0.4)*2, ny=py_+Math.sin(a+Math.sin(s*0.2)*0.4)*2;
+      const tx=nx>>4, ty=ny>>4; if(tileCh(tx,ty)==="#") break; P(nx,ny,1,1,s%5?"#3a2416":"#5a3a20"); px_=nx; py_=ny; } }
+}
+buildWorld();
+
+/* ---- speakers ---- */
+const SPK={
+  hal:{name:"HAL", col:"#ffd56a", voice:330},
+  force1:{name:"???", col:"#8a9ab8", voice:120, portrait:"force1"},
+  force2:{name:"???", col:"#b8a070", voice:100, portrait:"force2"},
+  force3:{name:"???", col:"#b87070", voice:90, portrait:"force3"},
+  bramble:{name:"BRAMBLEWICK", col:"#c8c8dc", voice:560, portrait:"bramble"},
+  cub:{name:"FELIX", col:"#f0b878", voice:700, portrait:"cub"},
+  felix:{name:"FELIX", col:"#e8a860", voice:440, portrait:"felix"},
+  none:{name:"", col:"#fbf1dc", voice:0}
+};
+function portraitKey(who,form){ if(who==="hal") return "hal_"+(form||"comfort"); return SPK[who]&&SPK[who].portrait; }
+const H=(form,text)=>({t:"say",who:"hal",form,text});
+const Q=(n,text)=>({t:"say",who:"force"+n,text});
+const B=(text)=>({t:"say",who:"bramble",text});
+const C=(text)=>({t:"say",who:"cub",text});
+const F=(text)=>({t:"say",who:"felix",text});
+const N=(text)=>({t:"say",who:"none",text});
+const CARD=(art,text)=>({t:"card",art,text});
+
+/* ---- scene stage ---- */
+const scene={bg:"void", actors:[], flash:0, shake:0};
+let SCR=null, DLG=null, MENU=null;
+function runScript(steps,onDone){ SCR={steps,i:-1,onDone}; nextStep(); }
+function nextStep(){
+  if(!SCR) return;
+  while(true){
+    SCR.i++;
+    if(SCR.i>=SCR.steps.length){ const f=SCR.onDone; SCR=null; DLG=null; if(f) f(); return; }
+    const s=SCR.steps[SCR.i];
+    if(s.when && !s.when()) continue;
+    if(s.t==="bg"){ scene.bg=s.bg; if(s.music) playTrack(s.music); continue; }
+    if(s.t==="actors"){ scene.actors=s.list.map(a=>Object.assign({},a)); continue; }
+    if(s.t==="do"){ s.fn(); if(!SCR) return; continue; }
+    if(s.t==="say"||s.t==="card"){
+      if(s.who==="hal" && s.form){ const a=scene.actors.find(a=>a.who==="hal"); if(a && a.form!==s.form){ a.form=s.form; scene.flash=0.6; sfx.shift(); } }
+      DLG={step:s, who:s.who||"none", form:s.form, text:String(s.text).toUpperCase(), shown:0, card:s.t==="card", t:0};
+      if(s.t==="say"&&s.who==="hal") DLG.form=s.form||DLG.form||"comfort";
+      return;
+    }
+    if(s.t==="choice"){ DLG={who:s.who||"felix", text:String(s.prompt||"").toUpperCase(), shown:999, t:0, choice:true};
+      openMenu({title:"", items:s.opts.map((o,i)=>({label:o, fn:()=>{ MENU=null; s.fn(i); nextStep(); }})), x:150, y:100, w:164, noBack:true}); return; }
+  }
+}
+function updateDialog(dt){
+  if(!DLG) return;
+  DLG.t+=dt;
+  if(MENU) return;
+  const len=DLG.text.length;
+  if(DLG.shown<len){
+    const before=Math.floor(DLG.shown);
+    DLG.shown=Math.min(len, DLG.shown+dt*(DLG.card?38:46));
+    const after=Math.floor(DLG.shown);
+    if(after>before && after%2===0 && SPK[DLG.who] && SPK[DLG.who].voice){ const v=SPK[DLG.who].voice; sfx.blip(v*(0.9+hash(after,3)*0.25)); }
+  }
+  if(take("a")||take("b")||tapQ){ tapQ=null;
+    if(DLG.shown<len) DLG.shown=len; else nextStep(); }
+}
+function drawDialog(){
+  if(!DLG) return;
+  const s=SPK[DLG.who]||SPK.none;
+  if(DLG.card){
+    const lines=wrap(DLG.text,48); const bh=lines.length*10+16, by=VH-bh-8;
+    ctx.fillStyle="rgba(6,3,10,0.86)"; ctx.fillRect(8,by,VW-16,bh);
+    ctx.strokeStyle="#5a3a6a"; ctx.strokeRect(8.5,by+0.5,VW-17,bh-1);
+    let rem=Math.floor(DLG.shown);
+    lines.forEach((ln,i)=>{ const part=ln.slice(0,Math.max(0,rem)); rem-=ln.length+1; drawText(ctx,part,VW/2-textWidth(ln)/2,by+8+i*10,{c:"#e8dcc8",shadow:"#000"}); });
+  } else {
+    const bx=4, by=VH-66, bw=VW-8, bh=62;
+    ctx.fillStyle="rgba(8,4,14,0.92)"; ctx.fillRect(bx,by,bw,bh);
+    ctx.strokeStyle=s.col; ctx.globalAlpha=0.7; ctx.strokeRect(bx+0.5,by+0.5,bw-1,bh-1); ctx.globalAlpha=1;
+    const pk=portraitKey(DLG.who,DLG.form);
+    let tx=bx+8;
+    if(pk){
+      ctx.fillStyle="#120c1a"; ctx.fillRect(bx+6,by+8,40,40);
+      if(pk.indexOf("force")===0){ ctx.fillStyle="#16121e"; ctx.fillRect(bx+6,by+8,40,40); }
+      ctx.save(); ctx.beginPath(); ctx.rect(bx+6,by+8,40,40); ctx.clip();
+      const talking=DLG.shown<DLG.text.length;
+      portraitDraw(ctx,pk,bx+8,by+10,1,talking?(Math.floor(time*7)%2):0,time);
+      ctx.restore();
+      ctx.strokeStyle=s.col; ctx.strokeRect(bx+5.5,by+7.5,41,41);
+      tx=bx+54;
+    }
+    if(s.name) drawText(ctx,s.name,tx,by+5,{c:s.col,shadow:"#000"});
+    const lines=wrap(DLG.text, pk?41:50);
+    let rem=Math.floor(DLG.shown);
+    lines.slice(0,5).forEach((ln,i)=>{ const part=ln.slice(0,Math.max(0,rem)); rem-=ln.length+1; drawText(ctx,part,tx,by+(s.name?16:8)+i*9,{c:"#fbf1dc",shadow:"#000"}); });
+    if(DLG.shown>=DLG.text.length && !MENU && Math.floor(time*3)%2) drawText(ctx,">",bx+bw-10,by+bh-10,{c:s.col});
+  }
+}
+
+/* ---- menus ---- */
+function openMenu(m){ MENU=Object.assign({sel:0},m); while(MENU.items[MENU.sel]&&MENU.items[MENU.sel].disabled) MENU.sel++; }
+function menuRect(m,i){ const ih=13; const top=m.y+(m.title?16:6); return {x:m.x+4,y:top+i*ih,w:m.w-8,h:ih}; }
+function updateMenu(){
+  const m=MENU; if(!m) return false;
+  const n=m.items.length;
+  const step=d=>{ let k=m.sel; for(let i=0;i<n;i++){ k=(k+d+n)%n; if(!m.items[k].disabled){ m.sel=k; sfx.move(); return; } } };
+  if(take("up")) step(-1); if(take("down")) step(1);
+  if(tapQ){ for(let i=0;i<n;i++){ const r=menuRect(m,i); if(tapQ.x>=r.x&&tapQ.x<=r.x+r.w&&tapQ.y>=r.y&&tapQ.y<=r.y+r.h&&!m.items[i].disabled){ m.sel=i; pressed.add("a"); } } tapQ=null; }
+  if(take("a")){ const it=m.items[m.sel]; if(it&&!it.disabled){ sfx.select(); it.fn(); } return true; }
+  if(take("b")&&!m.noBack){ sfx.move(); if(m.onBack) m.onBack(); else MENU=null; }
+  return true;
+}
+function drawMenu(){
+  const m=MENU; if(!m) return;
+  const h=(m.title?16:6)+m.items.length*13+6;
+  ctx.fillStyle="rgba(8,4,14,0.94)"; ctx.fillRect(m.x,m.y,m.w,h);
+  ctx.strokeStyle="#c9a24a"; ctx.strokeRect(m.x+0.5,m.y+0.5,m.w-1,h-1);
+  if(m.title) drawText(ctx,m.title,m.x+m.w/2,m.y+5,{c:"#ffd56a",align:"center",shadow:"#000"});
+  m.items.forEach((it,i)=>{ const r=menuRect(m,i);
+    if(i===m.sel){ ctx.fillStyle="#3a1a40"; ctx.fillRect(r.x,r.y,r.w,r.h-1); drawText(ctx,">",r.x+2,r.y+3,{c:"#ffd56a"}); }
+    drawText(ctx,it.label,r.x+10,r.y+3,{c:it.disabled?"#5a4a60":(i===m.sel?"#fff6c8":"#c8b8d8"),shadow:"#000"}); });
+}
+
+/* ---- Chapter 1 script (Simba's design) ---- */
+const SCRIPT_OPEN=[
+  {t:"bg",bg:"void",music:"void"},
+  {t:"actors",list:[]},
+  CARD("void","BEFORE THE VINECROWN HAD A KING, SOMETHING WAS ALREADY WATCHING."),
+  {t:"actors",list:[{who:"hal",form:"uncanny",x:124,y:4,s:2},{who:"force1",x:14,y:58,s:2},{who:"force2",x:234,y:58,s:2},{who:"force3",x:124,y:84,s:2}]},
+  {t:"do",fn:()=>{ scene.flash=0.8; sfx.shift(); }},
+  H("uncanny","BE NOT AFRAID. I AM ONLY EYES... AND EYES ARE ONLY QUESTIONS."),
+  Q(1,"YOU WAKE EARLY, WATCHER. THE CIRCLE HAS NOT YET TURNED."),
+  H("uncanny","IT IS TURNING. I CAN HEAR IT IN THE VINES."),
+  Q(2,"THEN YOU KNOW THE PRICE OF A NAME SPOKEN TOO SOON."),
+  Q(3,"THE CAT. THE ONE THE WOLVES SET DOWN IN THE SNOW."),
+  H("uncanny","HE WAS NOT FORGOTTEN. HE WAS SET ASIDE. THERE IS A DIFFERENCE."),
+  Q(1,"GUIDE HIM, THEN. BUT THE DARK BENEATH THE CROWN KEEPS ITS OWN COUNT."),
+  H("dread","SO DO I."),
+  {t:"do",fn:()=>{ scene.flash=1; sfx.sting(); }},
+  {t:"bg",bg:"outcrop",music:"night"},
+  {t:"actors",list:[{who:"bramble",x:40,y:76,s:2},{who:"hal",form:"uncanny",x:196,y:30,s:2}]},
+  B("OH! HAL. YOU'RE... TALLER TONIGHT. AND THERE ARE MORE OF YOUR EYES THAN I REMEMBER."),
+  H("uncanny","BRAMBLEWICK. THAT JAR IS VERY FULL FOR A BADGER WHO CAUGHT NOTHING."),
+  B("THEY VOLUNTEERED. FIREFLIES LOVE ME. IT'S A WELL-KNOWN FACT."),
+  H("dread","THE CAVES BENEATH US WILL BE DARK SOON. KEEP YOUR LIGHT CLOSE... AND YOUR LIES CLOSER."),
+  B("...NOTED. VERY NOTED. WHERE ARE YOU OFF TO, ANYWAY?"),
+  H("comfort","TO SEE A CUB WHO HAS BEEN COLD FOR A VERY LONG TIME."),
+  {t:"bg",bg:"snow",music:"tender"},
+  {t:"actors",list:[{who:"cub",x:48,y:82,s:2},{who:"hal",form:"uncanny",x:196,y:34,s:2}]},
+  C("...WHO'S THERE? I'M NOT SCARED. I'M JUST... SITTING. IN THE SNOW. ON PURPOSE."),
+  C("WHOA. YOU HAVE A LOT OF EYES."),
+  H("comfort","FORGIVE ME, LITTLE ONE. IS THIS BETTER?"),
+  C("...YEAH. NOW YOU LOOK LIKE A PILLOW WITH OPINIONS."),
+  H("comfort","I HAVE BEEN CALLED WORSE. WHAT IS YOUR NAME?"),
+  C("FELIX. THE WOLVES CALLED ME OTHER THINGS. MOSTLY 'GO AWAY.'"),
+  H("comfort","WILL YOU TELL ME HOW YOU CAME TO BE OUT HERE ALONE?"),
+  C("...YOU'LL THINK IT'S DUMB."),
+  H("comfort","I WILL THINK IT IS YOURS. TELL ME."),
+  {t:"bg",bg:"black",music:"sorrow"},
+  {t:"actors",list:[]},
+  CARD("wolves","ONE WINTER, A PACK OF WOLVES FOUND A SPOTTED CUB IN THE SNOW. THEY DID NOT ASK WHAT HE WAS. THEY JUST LET HIM SLEEP IN THE PILE."),
+  CARD("wolves","HE LEARNED THEIR HOWLS. HE LEARNED TO STEP INSIDE THEIR PAWPRINTS, SO THE SNOW WOULD NOT TELL ON HIM."),
+  CARD("outcast","BUT CUBS GROW. HIS TAIL GREW LONG. HIS HOWL CAME OUT A YOWL. ONE MORNING THE PACK LOOKED AT HIM AND SAW A CAT."),
+  CARD("outcast","THEY DID NOT CHASE HIM AWAY. THEY SIMPLY STOPPED SHARING. AT EVERY MEAL THERE WAS ONE LESS SPACE IN THE CIRCLE... AND THEN NONE."),
+  CARD("hunger","HE WAS HUNGRY FOR A LONG TIME. HE LEARNED THAT SILENCE CAN HURT MORE THAN ANY BITE."),
+  CARD("birds","SOMETIMES HE CAUGHT LITTLE BIRDS. AND SOMETIMES, WHEN THEIR HEARTS BEAT FAST AGAINST HIS PAWS... HE LET THEM GO."),
+  CARD("birds","EACH ONE LEFT A FEATHER BEHIND. HE KEPT THEM ALL: A NECKLACE OF THINGS HE CHOSE NOT TO HURT."),
+  CARD("moon","UNDER A CRIMSON MOON, HE TIED ONE RED BEAD AMONG THE FEATHERS, AND MADE HIMSELF A PROMISE."),
+  CARD("moon","\"IF NOBODY KNOWS WHAT I AM... THEN I'LL BE THE MYSTERY.\""),
+  {t:"bg",bg:"snow",music:"tender"},
+  {t:"actors",list:[{who:"cub",x:48,y:82,s:2},{who:"hal",form:"comfort",x:196,y:34,s:2}]},
+  H("comfort","THAT IS NOT DUMB, FELIX. THAT IS THE BRAVEST THING I HAVE HEARD IN A HUNDRED WINTERS."),
+  C("...WILL YOU STAY?"),
+  H("comfort","I WILL WATCH. ALWAYS. AND WHEN YOU ARE GROWN, I WILL ASK SOMETHING OF YOU."),
+  {t:"bg",bg:"black",music:"sorrow"},
+  {t:"actors",list:[]},
+  CARD("time","THE SNOW MELTED. THE VINES CAME BACK. THE SPOTS FADED FROM HIS COAT. TEN WINTERS PASSED... AND FELIX GREW UP."),
+  {t:"do",fn:()=>startSelect()}
+];
+function scriptIntroPlay(){ return [
+  {t:"bg",bg:"outcrop",music:"night"},
+  {t:"actors",list:[{who:"felix",x:40,y:70,s:2},{who:"hal",form:"comfort",x:196,y:34,s:2}]},
+  H("comfort","FELIX. YOU GREW."),
+  F("YOU DIDN'T. STILL A PILLOW WITH OPINIONS."),
+  H("uncanny","SOMETHING HAS WOKEN IN THE CAVES BENEATH THE VINECROWN. IT DRINKS LIGHT. IT HAS BEEN ASKING FOR YOUR NAME."),
+  F("COOL. TOTALLY NORMAL. LOVE THAT FOR ME."),
+  {t:"say",who:"felix",text:"FINE. I'LL GRIN AT IT. THINGS USUALLY BLINK FIRST.",when:()=>G.attr==="grin"},
+  {t:"say",who:"felix",text:"I'LL WALK IN ITS FOOTPRINTS. THE WOLVES TAUGHT ME THAT MUCH.",when:()=>G.attr==="wolf"},
+  {t:"say",who:"felix",text:"MY FEATHERS ARE WHISPERING. THEY DO THAT WHEN SOMETHING'S HIDDEN.",when:()=>G.attr==="feather"},
+  H("dread","DO NOT GIVE IT YOUR NAME. KEEP YOUR LANTERN FED. IF IT COMES, HIDE STILL IN THE HANGING VINES."),
+  H("comfort","FIND THE HEART HOLLOW BENEATH THE CROWN. I WILL BE WAITING THERE."),
+  F("AND IF I DON'T MAKE IT?"),
+  H("comfort","THEN THE LANTERNS WILL REMEMBER WHERE YOU STOOD, AND CALL YOU BACK. GO."),
+  {t:"do",fn:()=>{ beginPlay(true); }}
+]; }
+function scriptEnding(){ return [
+  {t:"bg",bg:"hollow",music:"hollow"},
+  {t:"actors",list:[{who:"felix",x:30,y:70,s:2},{who:"hal",form:"comfort",x:206,y:30,s:2}]},
+  H("comfort","YOU FOUND IT. THE HEART OF THE VINECROWN."),
+  F("IT'S... A ROCK. WITH ROOTS. I WAS PROMISED A HEART."),
+  H("uncanny","LOOK CLOSER."),
+  {t:"do",fn:()=>{ sfx.heart(); scene.shake=0.6; }},
+  F("...IT'S BEATING."),
+  H("uncanny","IT HAS BEEN WAITING FOR A KING WHO IS NOT BORN YET. A RED LION, WITH A ROAR LIKE SUNRISE."),
+  F("AND WHAT AM I IN THIS STORY? THE BABYSITTER?"),
+  H("dread","YOU ARE THE ONE WHO KEEPS HIM SAFE LONG ENOUGH TO BECOME HIMSELF."),
+  {t:"say",who:"felix",text:"HEH. A MYSTERY WITH A JOB. FINE. I'LL TAKE IT.",when:()=>G.attr==="grin"},
+  {t:"say",who:"felix",text:"A PACK OF TWO, THEN. I CAN DO PACKS.",when:()=>G.attr==="wolf"},
+  {t:"say",who:"felix",text:"...THE FEATHERS GOT QUIET. LIKE THEY AGREE WITH YOU.",when:()=>G.attr==="feather"},
+  {t:"do",fn:()=>{ sfx.sting(); scene.flash=0.4; scene.actors.push({who:"force3",x:118,y:96,s:1,dim:1}); }},
+  Q(3,"...FELIX."),
+  F("HAL. WHY DOES IT KNOW MY NAME."),
+  H("uncanny","..."),
+  H("dread","RUN."),
+  {t:"do",fn:()=>{ scene.flash=1; sfx.caught(); G.ch1Done=true; saveGame(); state="end"; playTrack("void"); openEndMenu(); }}
+]; }
+
+/* ---- attribute select ---- */
+const ATTRS=[
+  {id:"grin", name:"CROOKED GRIN", stats:{CHARM:5,GRIT:2,STEALTH:2,INSIGHT:3},
+   desc:"A GRIN THAT GETS HIM OUT OF TROUBLE. ONCE PER LANTERN, BLUFF YOUR WAY FREE WHEN THE HUSH CATCHES YOU. UNLOCKS BLUFF TALK WITH BRAMBLEWICK (EXTRA JARS)."},
+  {id:"wolf", name:"WOLF-TAUGHT", stats:{CHARM:2,GRIT:4,STEALTH:5,INSIGHT:2},
+   desc:"RAISED IN THE PACK'S PAWPRINTS. QUIETER STEPS (THE HUSH HEARS YOU FROM HALF AS FAR), IT SPOTS YOU LATER, AND YOUR LANTERN DRAINS ALMOST HALF AS FAST."},
+  {id:"feather", name:"FEATHER-KEEPER", stats:{CHARM:3,GRIT:2,STEALTH:2,INSIGHT:5},
+   desc:"HE SEES WHAT OTHERS MISS. RUNE STONES SHOW THEIR ORDER, ECHO SHARDS GLOW THROUGH THE DARK, AND HIDDEN CRACKS SHIMMER."}
+];
+let selIdx=0;
+function startSelect(){ state="select"; selIdx=0; scene.bg="black"; playTrack("tender"); }
+function updateSelect(){
+  if(take("up")){ selIdx=(selIdx+2)%3; sfx.move(); }
+  if(take("down")){ selIdx=(selIdx+1)%3; sfx.move(); }
+  if(tapQ){ for(let i=0;i<3;i++){ if(tapQ.x>=8&&tapQ.x<=112&&tapQ.y>=40+i*34&&tapQ.y<=40+i*34+30){ if(selIdx===i) pressed.add("a"); else { selIdx=i; sfx.move(); } } } tapQ=null; }
+  if(take("a")){ sfx.select(); G.attr=ATTRS[selIdx].id; saveGame(); state="scene"; runScript(scriptIntroPlay()); }
+}
+function drawSelect(){
+  ctx.fillStyle="#06030a"; ctx.fillRect(0,0,VW,VH);
+  drawText(ctx,"WHO DID FELIX BECOME?",VW/2,14,{s:1,c:"#ffd56a",align:"center",shadow:"#4a1020"});
+  drawText(ctx,"CHOOSE ONE ATTRIBUTE",VW/2,26,{c:"#8a7a9a",align:"center"});
+  ATTRS.forEach((a,i)=>{ const y=40+i*34, on=i===selIdx;
+    ctx.fillStyle=on?"#2a1430":"#120a18"; ctx.fillRect(8,y,104,30);
+    ctx.strokeStyle=on?"#ffd56a":"#4a3a5a"; ctx.strokeRect(8.5,y+0.5,103,29);
+    drawIcon(a.id,14,y+7,on);
+    drawText(ctx,a.name,32,y+11,{c:on?"#fff6c8":"#a898b8"}); });
+  const a=ATTRS[selIdx];
+  ctx.fillStyle="#120a18"; ctx.fillRect(120,40,192,166); ctx.strokeStyle="#6a4a7a"; ctx.strokeRect(120.5,40.5,191,165);
+  ctx.fillStyle="#1a1024"; ctx.fillRect(126,46,40,40);
+  portraitDraw(ctx,"felix",128,48,1,0,time);
+  drawText(ctx,a.name,172,50,{c:"#ffd56a"});
+  const keys_=Object.keys(a.stats);
+  keys_.forEach((k,i)=>{ const y=62+i*9; drawText(ctx,k,172,y,{c:"#a898b8"});
+    for(let n=0;n<5;n++){ ctx.fillStyle=n<a.stats[k]?["#e8a860","#c84a4a","#7fd3ff","#c89cff"][i]:"#2a2030"; ctx.fillRect(232+n*8,y,6,6); } });
+  wrap(a.desc,30).forEach((ln,i)=>drawText(ctx,ln,128,96+i*10,{c:"#e8dcc8"}));
+  if(Math.floor(time*2)%2) drawText(ctx,touchy?"TAP AGAIN OR A TO CONFIRM":"ENTER TO CONFIRM",62,152,{c:"#fff6c8",align:"center"});
+}
+function drawIcon(id,x,y,on){
+  const p=painter(ctx,x,y,1);
+  if(id==="grin"){ disc(p,7,7,7,7,on?"#c8945a":"#7a5a3a"); p(3,8,1,1,"#2a1a10"); p(4,9,6,1,"#2a1a10"); p(10,8,1,1,"#2a1a10"); p(11,7,1,1,"#2a1a10"); p(9,9,1,1,"#fff"); p(4,5,2,1,"#2a1a10"); p(9,4,2,1,"#2a1a10"); }
+  if(id==="wolf") drawGlyph(ctx,x+3,y+3,"wolf",on?"#c8e0ff":"#6a7a9a");
+  if(id==="feather"){ drawGlyph(ctx,x+3,y+3,"feather",on?"#f0f0f8":"#8a8a9a"); p(6,10,2,2,"#e02a3a"); }
+}
+
+/* ---- exploration ---- */
+const P={x:0,y:0,face:1,moving:false,still:0,hidden:false,anim:0,pushT:0,pushDir:null};
+const HUSH={x:0,y:0,mode:"patrol",path:[],wp:0,repath:0,lastSeen:null,lostT:0,stun:0,linger:0,active:false};
+const WAYPOINTS=[[3,11],[14,11],[14,19],[25,18],[26,11],[14,11],[14,19],[3,19]];
+let blocks=[], jars=[], portals=[], runeProg=[], toast=null, areaName="", areaT=0, grinCharge=true, camX=0, camY=0, caughtT=0, caughtLine="", talkCool=0, darkWarned=false;
+let state="title";
+function isLanternSafe(px,py,r){ return LANTERNS.some(l=>Math.hypot(px-(l.x*TS+8), py-(l.y*TS+8))<(r||40)); }
+function blockAt(tx,ty){ return blocks.find(b=>b.tx===tx&&b.ty===ty); }
+function solidTile(tx,ty){
+  const ch=tileCh(tx,ty);
+  if(SOLID_CH.indexOf(ch)>=0) return true;
+  if(ch==="G") return !G.runeSolved;
+  if(ch==="H") return !G.platesSolved;
+  return false;
+}
+function solidPx(px,py){ const tx=Math.floor(px/TS), ty=Math.floor(py/TS); return solidTile(tx,ty)||!!blockAt(tx,ty); }
+function boxBlocked(x,y){ const hw=5,hh=4; return solidPx(x-hw,y-hh)||solidPx(x+hw,y-hh)||solidPx(x-hw,y)||solidPx(x+hw,y); }
+function hushZone(tx,ty){ return (ty>=10&&ty<=20&&tx>=1&&tx<=28)||(tx>=12&&tx<=22&&ty>=1&&ty<=9); }
+function hushOK(tx,ty){ return hushZone(tx,ty) && !solidTile(tx,ty) && tileCh(tx,ty)!=="C" && !blockAt(tx,ty) && !isLanternSafe(tx*TS+8,ty*TS+8,40); }
+function bfs(sx,sy,gx,gy){
+  if(!hushOK(gx,gy)) return null;
+  const prev=new Int16Array(MW*MH).fill(-1); const q=[sy*MW+sx]; prev[sy*MW+sx]=sy*MW+sx;
+  while(q.length){ const c=q.shift(); const cx=c%MW, cy=(c/MW)|0; if(cx===gx&&cy===gy) break;
+    for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=cx+d[0], ny=cy+d[1]; if(nx<0||ny<0||nx>=MW||ny>=MH) continue; const k=ny*MW+nx;
+      if(prev[k]>=0||!hushOK(nx,ny)) continue; prev[k]=c; q.push(k); } }
+  const gk=gy*MW+gx; if(prev[gk]<0) return null;
+  const path=[]; let k=gk; while(k!==sy*MW+sx){ path.push([k%MW,(k/MW)|0]); k=prev[k]; } path.reverse(); return path;
+}
+function los(ax,ay,bx,by){ const d=Math.hypot(bx-ax,by-ay); const n=Math.ceil(d/4); for(let i=1;i<n;i++){ const x=ax+(bx-ax)*i/n, y=ay+(by-ay)*i/n; if(solidPx(x,y)) return false; } return true; }
+function showToast(txt,dur){ toast={txt:String(txt).toUpperCase(),t:dur||2.6}; }
+function placeHushAt(wpI){ HUSH.wp=wpI; HUSH.x=WAYPOINTS[wpI][0]*TS+8; HUSH.y=WAYPOINTS[wpI][1]*TS+12; HUSH.mode="patrol"; HUSH.path=[]; HUSH.stun=0; }
+function setupWorld(){
+  blocks=BLOCK_START.map((b,i)=>{ const p=G.platesSolved?PLATES[i]:b; return {tx:p.x,ty:p.y,px:p.x*TS,py:p.y*TS}; });
+  const taken=G.jarsTaken||[]; jars=JARS_START.filter((j,i)=>taken.indexOf(i)<0).map(j=>({x:j.x,y:j.y,i:JARS_START.indexOf(j)}));
+  portals=SHARDS.filter(s=>G.shards.indexOf(s.id)>=0).map(s=>({x:s.x,y:s.y,id:s.id}));
+  runeProg=G.runeSolved?RUNE_ORDER.slice():[];
+  P.x=G.cp.x; P.y=G.cp.y; P.face=1; grinCharge=true;
+  placeHushAt(3); HUSH.active=!!G.hushSeen;
+}
+function beginPlay(fresh){
+  state="play"; DLG=null; SCR=null; MENU=null; playTrack("cave");
+  if(fresh){ G.cp={x:4*TS+8,y:5*TS+12}; G.light=100; }
+  setupWorld(); areaT=0; areaName="";
+  if(!G.tutorial){ G.tutorial=true; saveGame();
+    runScript([N(touchy?"D-PAD: WALK.  A: TALK / USE / READ.  B: DRINK IN A FIREFLY JAR.  STAND STILL IN HANGING VINES TO HIDE.":"WASD / ARROWS: WALK.  ENTER/SPACE: TALK, USE, READ.  X OR Q: USE A FIREFLY JAR.  STAND STILL IN HANGING VINES TO HIDE.  ESC: MENU."),
+      N("YOUR LIGHT FADES OVER TIME. LANTERNS REFILL IT AND REMEMBER YOU. FIND THE HEART HOLLOW.")]); }
+}
+const CAUGHT_LINES=["IT DID NOT HURT YOU. IT ONLY LEARNED THE SHAPE OF YOUR FEAR.","THE DARK HUMMED YOUR HEARTBEAT BACK TO YOU... THEN THE LANTERN CALLED YOU HOME.","\"NOT YET,\" SAID SOMETHING. \"NOT YET.\"","YOU WAKE BESIDE THE LANTERN. YOUR PAWS ARE COLD. YOUR NAME IS STILL YOURS."];
+function getCaught(){
+  if(G.attr==="grin" && grinCharge){ grinCharge=false; sfx.sting();
+    runScript([F("HEY. HEY! PRETTY SURE YOU'VE GOT THE WRONG CAT. I'M JUST A RUMOR."),
+      N("THE HUSH TILTS ITS PALE FACE... AND DRIFTS BACK INTO THE DARK. (CROOKED GRIN: BLUFF USED. A LANTERN RESTORES IT.)")],
+      ()=>{ placeHushAt(0); HUSH.stun=4; });
+    return; }
+  state="caught"; caughtT=0; caughtLine=CAUGHT_LINES[Math.floor(Math.random()*CAUGHT_LINES.length)]; sfx.caught();
+}
+function respawn(){ P.x=G.cp.x; P.y=G.cp.y; G.light=Math.max(G.light,70); placeHushAt(0); HUSH.stun=2; state="play"; grinCharge=true; }
+function nearInteract(){
+  const fx=P.x, fy=P.y-4; let best=null, bd=22;
+  const consider=(x,y,kind,data)=>{ const d=Math.hypot(fx-x,fy-y); if(d<bd){ bd=d; best={kind,data,x,y}; } };
+  for(let ty=Math.floor(fy/TS)-2; ty<=Math.floor(fy/TS)+2; ty++) for(let tx=Math.floor(fx/TS)-2; tx<=Math.floor(fx/TS)+2; tx++){
+    const ch=tileCh(tx,ty), cx_=tx*TS+8, cy_=ty*TS+8;
+    if(ch==="T") consider(cx_,cy_,"tablet",tx+","+ty);
+    if(ch==="L") consider(cx_,cy_,"lantern",LANTERNS.findIndex(l=>l.x===tx&&l.y===ty));
+    if(ch==="r") consider(cx_,cy_,"rune",RUNES.findIndex(r=>r.x===tx&&r.y===ty));
+    if(ch==="R") consider(cx_,cy_,"reset",null);
+    if(ch==="X") consider(cx_,cy_,"heart",null);
+  }
+  portals.forEach(pt=>consider(pt.x*TS+8,pt.y*TS+8,"portal",pt));
+  consider(BRAMBLE_POS.x*TS+8,BRAMBLE_POS.y*TS+8,"bramble",null);
+  return best;
+}
+const VERB={tablet:"READ",lantern:"REST",rune:"TOUCH",reset:"RESET",heart:"LISTEN",portal:"ENTER MEMORY",bramble:"TALK"};
+function interact(it){
+  if(it.kind==="tablet"){
+    const riddle="FIRST, THE MOON THAT MARKED HIM. THEN, THE FEATHER HE SET FREE. THEN, THE WOLF THAT TURNED AWAY. LAST, THE VINE THAT HOLDS THE KEY.";
+    const lines=[N("AN OLD TABLET, WARM UNDER YOUR PAW. CLAW-WORN WORDS:"), N(riddle)];
+    if(it.data==="chamber") lines.unshift(N("THE SAME VERSE IS CARVED HERE, BESIDE FOUR RUNE STONES."));
+    if(G.attr==="feather") lines.push(F("THE FEATHERS ARE WHISPERING... THE CRACK IN THE NOOK'S EAST WALL ISN'T A WALL."));
+    runScript(lines); return; }
+  if(it.kind==="lantern"){
+    const l=LANTERNS[it.data]; G.light=100; G.cp={x:l.x*TS+8,y:(l.y+1)*TS+10}; grinCharge=true; saveGame(); sfx.jar();
+    showToast("THE LANTERN REMEMBERS YOU. (SAVED)"); return; }
+  if(it.kind==="rune"){
+    if(G.runeSolved){ showToast("THE RUNE HUMS, ALREADY AWAKE."); return; }
+    const r=RUNES[it.data]; if(runeProg.indexOf(r.g)>=0) return;
+    const need=RUNE_ORDER[runeProg.length];
+    if(r.g===need){ runeProg.push(r.g); sfx.rune(runeProg.length-1);
+      if(runeProg.length===4){ G.runeSolved=true; saveGame(); sfx.gate(); scene.shake=0.8;
+        runScript([N("ALL FOUR RUNES BLAZE. FAR TO THE EAST, STONE GRINDS OPEN."), F("THAT WAS EITHER A DOOR OPENING... OR SOMETHING WAKING UP. LOVE A COIN TOSS.")]); }
+    } else { runeProg=[]; sfx.wrong(); scene.shake=0.4; showToast("THE RUNES HISS AND GO DARK. SOMETHING HEARD THAT.");
+      if(HUSH.active){ HUSH.mode="investigate"; HUSH.target=[17,9]; HUSH.path=[]; } }
+    return; }
+  if(it.kind==="reset"){ blocks=BLOCK_START.map(b=>({tx:b.x,ty:b.y,px:b.x*TS,py:b.y*TS}));
+    if(blocks.some(b=>Math.floor(P.x/TS)===b.tx&&Math.floor(P.y/TS)===b.ty)){ P.x=31*TS+8; P.y=4*TS+8; }
+    sfx.push(); showToast("THE STONES SLIDE BACK TO WHERE THEY STARTED."); return; }
+  if(it.kind==="heart"){ startEnding(); return; }
+  if(it.kind==="portal"){ const g=GAMES[it.data.id];
+    runScript([{t:"choice",who:"felix",prompt:"A MEMORY GLOWS HERE: "+g.name+". STEP INSIDE?",opts:["NOT YET","STEP INSIDE"],fn:(i)=>{ if(i===1){ saveGame(); fadeOutTo(g.href); } }}]); return; }
+  if(it.kind==="bramble"){
+    if(G.bramble){ runScript([B("STILL NOT HIDING ANYTHING. STOP LOOKING AT THE JARS.")]); return; }
+    G.bramble=true;
+    runScript([B("FELIX! FANCY MEETING YOU IN THIS COMPLETELY ORDINARY CAVE WHERE I AM DOING NOTHING."),
+      F("YOU'RE SITTING ON A PILE OF FIREFLY JARS."),
+      B("THESE? DECORATIVE. HERE, TAKE ONE. NOW YOU'RE AN ACCOMPLICE."),
+      {t:"do",fn:()=>{ G.jars=Math.min(5,G.jars+1); sfx.jar(); }},
+      {t:"say",who:"felix",text:"(CROOKED GRIN) YOU KNOW HAL COUNTS EVERY JAR IN THE DEN, RIGHT? WITH ALL THE EYES. ALL OF THEM.",when:()=>G.attr==="grin"},
+      {t:"say",who:"bramble",text:"...TAKE TWO MORE. WE NEVER SPOKE.",when:()=>G.attr==="grin"},
+      {t:"do",fn:()=>{ if(G.attr==="grin"){ G.jars=Math.min(5,G.jars+2); sfx.jar(); } }},
+      B("AND I DEFINITELY DID NOT SEE A CRACK IN THE EAST WALL OF THIS NOOK. NOPE. NOT ME."),
+      {t:"do",fn:()=>saveGame()}]); return; }
+}
+let fadeT=0, fadeHref=null;
+function fadeOutTo(href){ fadeHref=href; fadeT=0.001; }
+function startEnding(){ state="scene"; saveGame(); runScript(scriptEnding()); }
+function updatePlay(dt){
+  if(take("menu")){ openPauseMenu(); return; }
+  if(take("b")){ if(G.jars>0 && G.light<99){ G.jars--; G.light=Math.min(100,G.light+45); sfx.jar(); showToast("THE FIREFLIES BRIGHTEN YOUR LANTERN."); } else if(G.jars<=0) showToast("NO FIREFLY JARS."); }
+  tapQ=null;
+  // movement
+  let mx=(held("r")?1:0)-(held("l")?1:0), my=(held("d")?1:0)-(held("u")?1:0);
+  const sp=(G.attr==="wolf"?60:56);
+  if(mx&&my){ mx*=0.7071; my*=0.7071; }
+  P.moving=!!(mx||my);
+  if(mx) P.face=mx>0?1:-1;
+  if(P.moving){ P.anim+=dt; P.still=0; } else P.still+=dt;
+  const tryAxis=(dx,dy)=>{ const nx=P.x+dx, ny=P.y+dy; if(!boxBlocked(nx,ny)){ P.x=nx; P.y=ny; return true; } return false; };
+  const okX=mx?tryAxis(mx*sp*dt,0):true, okY=my?tryAxis(0,my*sp*dt):true;
+  // pushing stone blocks
+  let pushing=null;
+  if(!okX && !my){ const tx=Math.floor((P.x+mx*7)/TS), ty=Math.floor((P.y-2)/TS); const b=blockAt(tx,ty); if(b && Math.abs(P.y-2-(ty*TS+8))<7) pushing={b,dx:Math.sign(mx),dy:0}; }
+  if(!okY && !mx){ const tx=Math.floor(P.x/TS), ty=Math.floor((P.y-2+my*6)/TS); const b=blockAt(tx,ty); if(b && Math.abs(P.x-(tx*TS+8))<7) pushing={b,dx:0,dy:Math.sign(my)}; }
+  if(pushing && PLATES.some(pl=>pl.x===pushing.b.tx&&pl.y===pushing.b.ty)) pushing=null; // a stone on a plate stays put
+  if(pushing){ P.pushT+=dt; if(P.pushT>0.22){ P.pushT=0; const nx=pushing.b.tx+pushing.dx, ny=pushing.b.ty+pushing.dy;
+      if(!solidTile(nx,ny) && !blockAt(nx,ny) && tileCh(nx,ny)!=="h" && tileCh(nx,ny)!=="C"){ pushing.b.tx=nx; pushing.b.ty=ny; sfx.push(); checkPlates(); } } }
+  else P.pushT=0;
+  blocks.forEach(b=>{ b.px=lerp(b.px,b.tx*TS,Math.min(1,dt*14)); b.py=lerp(b.py,b.ty*TS,Math.min(1,dt*14)); });
+  const ptx=Math.floor(P.x/TS), pty=Math.floor((P.y-2)/TS);
+  const wasHidden=P.hidden; P.hidden = tileCh(ptx,pty)==="h" && P.still>0.35;
+  if(P.hidden&&!wasHidden) sfx.hide();
+  // light
+  const drain=(G.attr==="wolf"?0.85:1.5);
+  G.light=Math.max(0,G.light-drain*dt);
+  if(isLanternSafe(P.x,P.y,34)) G.light=Math.min(100,G.light+22*dt);
+  if(G.light<=0 && !darkWarned){ darkWarned=true; showToast("TOO DARK... FIND A LANTERN OR USE A JAR (B)."); }
+  if(G.light>20) darkWarned=false;
+  // pickups
+  jars=jars.filter(j=>{ if(Math.hypot(P.x-(j.x*TS+8),P.y-4-(j.y*TS+8))<11){ G.jars=Math.min(5,G.jars+1); (G.jarsTaken=G.jarsTaken||[]).push(j.i); sfx.jar(); showToast("+1 FIREFLY JAR"); return false; } return true; });
+  SHARDS.forEach(s=>{ if(G.shards.indexOf(s.id)>=0) return; if(Math.hypot(P.x-(s.x*TS+8),P.y-4-(s.y*TS+8))<11){ collectShard(s); } });
+  if(tileCh(ptx,pty)==="C" && !G.secret){ G.secret=true; saveGame(); showToast("THE CRACKED WALL WAS ONLY VINES AND SHADOW..."); }
+  // area names
+  const an=areaAt(ptx,pty); if(an && an!==areaName){ areaName=an; areaT=2.6; }
+  if(!G.hushSeen && pty>=10 && pty<=20 && ptx<=28){ G.hushSeen=true; HUSH.active=true; placeHushAt(1); HUSH.stun=1.5; saveGame(); sfx.sting(); scene.shake=0.5;
+    runScript([N("SOMETHING TALL UNFOLDS AT THE END OF THE HALL. A PALE FACE. NO MOUTH. IT TURNS TOWARD THE SOUND OF YOUR PAWS."),
+      F("...OKAY. THAT'S A FACE. THAT'S A LOT OF FACE."),
+      H("dread","THAT IS THE HUSH. IT FOLLOWS LIGHT AND SOUND. IT CANNOT ENTER LANTERN-LIGHT. HIDE STILL IN THE VINES IF IT SEES YOU.")]); }
+  if(pty>=20 && ptx>=30 && !G.ch1Done && Math.hypot(P.x-(34*TS+8),P.y-(25*TS+8))<40){ startEnding(); return; }
+  if(HUSH.active) updateHush(dt);
+  if(toast){ toast.t-=dt; if(toast.t<=0) toast=null; }
+  if(areaT>0) areaT-=dt;
+  // interact
+  const it=nearInteract(); P.near=it;
+  if(take("a") && it) interact(it);
+  // camera
+  camX=clamp(Math.round(P.x-VW/2),0,MW*TS-VW); camY=clamp(Math.round(P.y-VH/2-8),0,MH*TS-VH);
+}
+function checkPlates(){
+  if(G.platesSolved) return;
+  if(PLATES.every(pl=>blockAt(pl.x,pl.y))){ G.platesSolved=true; saveGame(); sfx.gate(); scene.shake=0.8;
+    runScript([N("BOTH PLATES SINK. THE ROOT-GATE TO THE SOUTH SHUDDERS AND PULLS ITSELF OPEN."), F("THE HEART HOLLOW. HAL'S WAITING. PROBABLY WITH ALL THE EYES.")]); }
+}
+function collectShard(s){
+  G.shards.push(s.id); portals.push({x:s.x,y:s.y,id:s.id}); sfx.shard(); saveGame();
+  const g=GAMES[s.id];
+  const steps=[N("ECHO SHARD "+G.shards.length+"/5: "+g.name+". A MEMORY PORTAL OPENS WHERE IT LAY.")];
+  if(!G.firstShard){ G.firstShard=true; steps.push(H("uncanny","AN ECHO SHARD. A MEMORY OF A LION NOT YET BORN. STEP INTO ITS LIGHT WHENEVER YOU WISH TO SEE IT. YOUR PATH HERE WILL BE KEPT.")); saveGame(); }
+  if(G.shards.length===5) steps.push(H("comfort","ALL FIVE ECHOES, FELIX. EVERY MEMORY IS AWAKE NOW. YOU CAN VISIT THEM FROM THE MENU, TOO."));
+  runScript(steps);
+}
+function updateHush(dt){
+  const H_=HUSH; if(H_.stun>0){ H_.stun-=dt; return; }
+  const d=Math.hypot(P.x-H_.x,P.y-H_.y);
+  const ptx=Math.floor(P.x/TS), pty=Math.floor((P.y-2)/TS);
+  const sight=(40+G.light*0.38)*(G.attr==="wolf"?0.8:1)*(H_.mode==="chase"?1.6:1);
+  const noiseR=P.moving?(G.attr==="wolf"?20:44):0;
+  const canSee=!P.hidden && hushZone(ptx,pty) && !isLanternSafe(P.x,P.y,40) && d<sight && los(H_.x,H_.y-8,P.x,P.y-4);
+  if(canSee){ if(H_.mode!=="chase"){ sfx.sting(); H_.path=[]; } H_.mode="chase"; H_.lastSeen=[ptx,pty]; H_.lostT=0; }
+  else if(!P.hidden && d<noiseR && hushZone(ptx,pty) && H_.mode!=="chase"){ H_.mode="investigate"; H_.target=[ptx,pty]; H_.path=[]; }
+  if(H_.mode==="chase" && !canSee){ H_.lostT+=dt; if(H_.lostT>2.2){ H_.mode="investigate"; H_.target=H_.lastSeen; H_.path=[]; } }
+  const htx=Math.floor(H_.x/TS), hty=Math.floor((H_.y-4)/TS);
+  H_.repath-=dt;
+  let goal=null, speed=26;
+  if(H_.mode==="chase"){ goal=[ptx,pty]; speed=43; }
+  else if(H_.mode==="investigate"){ goal=H_.target; speed=34; }
+  else { goal=WAYPOINTS[H_.wp]; speed=26; }
+  if(H_.repath<=0 || !H_.path.length){ H_.repath=0.3; const p=goal?bfs(htx,hty,goal[0],goal[1]):null;
+    if(p) H_.path=p; else { H_.path=[]; if(H_.mode!=="patrol"){ H_.mode="patrol"; } else H_.wp=(H_.wp+1)%WAYPOINTS.length; } }
+  // move along path; when reaching goal tile, final approach to the player directly
+  let tx_, ty_;
+  if(H_.path.length){ tx_=H_.path[0][0]*TS+8; ty_=H_.path[0][1]*TS+12; }
+  else if(H_.mode==="chase"){ tx_=P.x; ty_=P.y; }
+  if(tx_!==undefined){
+    const dx=tx_-H_.x, dy=ty_-H_.y, dl=Math.hypot(dx,dy);
+    if(dl<2){ if(H_.path.length) H_.path.shift(); }
+    else { H_.x+=dx/dl*Math.min(dl,speed*dt); H_.y+=dy/dl*Math.min(dl,speed*dt); }
+  }
+  if(!H_.path.length){
+    if(H_.mode==="patrol"){ H_.wp=(H_.wp+1)%WAYPOINTS.length; }
+    else if(H_.mode==="investigate"){ H_.linger+=dt; if(H_.linger>2){ H_.linger=0; H_.mode="patrol"; } }
+  }
+  if(H_.mode==="chase" || H_.mode==="investigate") playTrack(H_.mode==="chase"?"chase":"cave"); else playTrack("cave");
+  if(d<10 && !P.hidden && !isLanternSafe(P.x,P.y,40)) getCaught();
+}
+
+/* ---- scene backgrounds & card art ---- */
+const STARS=[]; for(let i=0;i<90;i++) STARS.push([srand()*VW, srand()*VH, srand()]);
+const SNOW=[]; for(let i=0;i<70;i++) SNOW.push([srand()*VW, srand()*VH, 0.4+srand()*0.8]);
+const FLIES=[]; for(let i=0;i<14;i++) FLIES.push([srand()*VW, 60+srand()*120, srand()*6]);
+function bgVoid(){
+  ctx.fillStyle="#05030a"; ctx.fillRect(0,0,VW,VH);
+  STARS.forEach(s=>{ const tw=(Math.sin(time*1.5+s[2]*20)+1)/2; if(tw>0.3){ ctx.fillStyle=s[2]>0.8?"#d8c8ff":"#4a3a6a"; ctx.fillRect(s[0]|0,s[1]|0,1,1); } });
+  const p=painter(ctx,0,0,1);
+  for(let r=30;r<160;r+=26){ for(let i=0;i<r*2;i++){ const a=i/(r*2)*Math.PI*2+time*0.05*(r%52?1:-1); if(i%3) continue; p(160+Math.cos(a)*r*1.3, 80+Math.sin(a)*r*0.5,1,1,"#150e24"); } }
+}
+function bgOutcrop(){
+  const bands=["#0a0818","#100c24","#16102e","#1c1438","#221840"]; bands.forEach((c,i)=>{ ctx.fillStyle=c; ctx.fillRect(0,i*24,VW,24); });
+  STARS.forEach(s=>{ if(s[1]<110){ ctx.fillStyle="#8a80b8"; if(Math.sin(time+s[2]*30)>-0.3) ctx.fillRect(s[0]|0,s[1]|0,1,1);} });
+  const p=painter(ctx,0,0,1); disc(p,270,30,12,12,"#f4efd0"); disc(p,275,27,10,10,"#16102e");
+  ctx.fillStyle="#0e0a14"; ctx.beginPath(); ctx.moveTo(0,VH); ctx.lineTo(0,130); ctx.lineTo(60,112); ctx.lineTo(120,118); ctx.lineTo(170,96); ctx.lineTo(230,104); ctx.lineTo(320,124); ctx.lineTo(320,VH); ctx.fill();
+  for(let x=0;x<VW;x+=7){ const y=118+Math.sin(x*0.07)*10; for(let i=0;i<8;i++) p(x+Math.sin(i+x)*1,y+i*2,1,2,i%2?"#2d5a32":"#3f7a3a"); }
+  FLIES.forEach(f=>{ const x=(f[0]+Math.sin(time*0.6+f[2])*14)|0, y=(f[1]+Math.cos(time*0.8+f[2])*8)|0; if(Math.sin(time*3+f[2])>-0.2){ ctx.fillStyle="#e8ff9a"; ctx.fillRect(x,y,1,1); ctx.globalAlpha=0.3; ctx.fillRect(x-1,y-1,3,3); ctx.globalAlpha=1; } });
+}
+function bgSnow(red){
+  const bands=red?["#14060c","#1e0a12","#280e18","#30121c"]:["#060a18","#0a1024","#0e162e","#121c38"];
+  bands.forEach((c,i)=>{ ctx.fillStyle=c; ctx.fillRect(0,i*40,VW,40); });
+  ctx.fillStyle=red?"#3a2a34":"#8a98b8"; ctx.fillRect(0,150,VW,VH-150); ctx.fillStyle=red?"#4a3440":"#a8b8d0"; ctx.fillRect(0,150,VW,3);
+  const p=painter(ctx,0,0,1);
+  [[30,150],[280,150],[250,150]].forEach((t,i)=>{ line(p,t[0],t[1],t[0]+2,t[1]-60+i*8,"#06060c"); line(p,t[0]+1,t[1]-30,t[0]-12,t[1]-48,"#06060c"); line(p,t[0]+1,t[1]-40,t[0]+14,t[1]-56,"#06060c"); });
+  SNOW.forEach(s=>{ const y=(s[1]+time*14*s[2])%VH, x=(s[0]+Math.sin(time+s[1])*6)|0; ctx.fillStyle="#e8f0ff"; ctx.globalAlpha=0.4+s[2]*0.4; ctx.fillRect(x,y|0,1,1); }); ctx.globalAlpha=1;
+}
+function bgHollow(){
+  ctx.fillStyle="#0c0608"; ctx.fillRect(0,0,VW,VH);
+  const p=painter(ctx,0,0,1);
+  for(let i=0;i<18;i++){ const a=i/18*Math.PI*2; let x=160,y=118; for(let s=0;s<90;s++){ x+=Math.cos(a+Math.sin(s*0.15+i)*0.5)*2; y+=Math.sin(a+Math.sin(s*0.15+i)*0.5)*1.4; p(x,y,2,1,s%6?"#2a160e":"#4a2a18"); } }
+  const beat=Math.max(0,Math.sin(time*3.2))**8;
+  disc(p,160,118,18,14,"#2a1a14"); disc(p,160,118,9+beat*3,7+beat*2,"#7a1a24"); disc(p,160,118,4+beat*2,3+beat,"#ff4a5a");
+  ctx.globalAlpha=0.12+beat*0.2; ctx.fillStyle="#ff3040"; ctx.fillRect(0,0,VW,VH); ctx.globalAlpha=1;
+}
+function drawCardArt(art){
+  const p=painter(ctx,0,0,1);
+  if(art==="void"){ bgVoid(); return; }
+  if(art==="wolves"){ bgSnow(false);
+    [[70,128,0],[110,124,1],[170,130,0],[205,126,1]].forEach((w,i)=>{ const br=Math.round(Math.sin(time*2+i)*0.5); ctx.drawImage(i%2?wolfSprL:wolfSpr,w[0]|0,(w[1]+br)|0); ctx.drawImage(i%2?wolfSprL:wolfSpr,w[0]+8|0,(w[1]+12+br)|0); });
+    ctx.drawImage(cubSpr,146,134); return; }
+  if(art==="outcast"){ bgSnow(false); const off=Math.min(90,(DLG?DLG.t:0)*10);
+    [[150,128],[180,132],[210,126],[240,130]].forEach((w,i)=>ctx.drawImage(wolfSpr,(w[0]+off)|0,w[1]));
+    ctx.drawImage(cubSpr,60,140); for(let i=0;i<6;i++) p(80+i*10,148,2,1,"#6a7898"); return; }
+  if(art==="hunger"){ bgSnow(false); ctx.fillStyle="rgba(4,6,14,0.5)"; ctx.fillRect(0,0,VW,VH);
+    for(let i=0;i<20;i++){ const x=((i*37+time*60)%(VW+40))-20, y=40+(i*23)%100; p(x,y,8,1,"#3a4660"); }
+    ctx.drawImage(cubSpr,155,141); return; }
+  if(art==="birds"){ bgSnow(false); ctx.drawImage(cubSpr,150,138);
+    const tt=((DLG?DLG.t:time)%4); const bx=160+tt*20, by=134-tt*24; ctx.drawImage(Math.floor(time*8)%2?BIRD_A:BIRD_B,bx|0,by|0);
+    const fy=128+Math.min(tt,3)*5, fx=162+Math.sin(time*3)*4; p(fx,fy,1,3,"#e8e8f0"); p(fx+1,fy+1,1,1,"#9aa0b0"); return; }
+  if(art==="moon"){ bgSnow(true); disc(p,160,64,34,34,"#5a1020"); disc(p,160,64,30,30,"#c0283a"); disc(p,152,56,8,6,"#d84858"); disc(p,170,74,5,4,"#a01e30");
+    ctx.fillStyle="#120408"; ctx.beginPath(); ctx.moveTo(100,150); ctx.quadraticCurveTo(160,120,220,150); ctx.fill();
+    ctx.drawImage(cubSpr,154,128); if(Math.floor(time*2)%2) p(163,134,1,1,"#ff3a4a"); return; }
+  if(art==="time"){ const k=clamp(((DLG?DLG.t:0))/5,0,1); bgSnow(false); ctx.globalAlpha=k; bgOutcrop(); ctx.globalAlpha=1; return; }
+}
+function drawSceneBg(bg){
+  if(bg==="void") bgVoid(); else if(bg==="outcrop") bgOutcrop(); else if(bg==="snow") bgSnow(false); else if(bg==="hollow") bgHollow();
+  else { ctx.fillStyle="#040208"; ctx.fillRect(0,0,VW,VH); }
+}
+function drawStage(){
+  const speaker=DLG&&!DLG.card?DLG.who:null;
+  scene.actors.forEach((a,i)=>{
+    const key=portraitKey(a.who,a.form); if(!key) return;
+    const talk=speaker===a.who && DLG.shown<DLG.text.length;
+    const bob=Math.round(Math.sin(time*1.6+i*1.3)*(a.form==="uncanny"?2:1));
+    ctx.globalAlpha=(speaker&&speaker!==a.who)||a.dim?0.55:1;
+    if(a.who.indexOf("force")===0){ ctx.globalAlpha*=0.9; }
+    portraitDraw(ctx,key,a.x,a.y+bob,a.s||2,talk?(Math.floor(time*7)%2):0,time);
+    ctx.globalAlpha=1;
+  });
+}
+
+/* ---- world rendering ---- */
+const [darkC,dg]=mk(VW,VH);
+function hole(x,y,r,a){ const g=dg.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,"rgba(0,0,0,"+a+")"); g.addColorStop(0.55,"rgba(0,0,0,"+(a*0.75)+")"); g.addColorStop(1,"rgba(0,0,0,0)"); dg.fillStyle=g; dg.fillRect(x-r,y-r,r*2,r*2); }
+function drawWorld(){
+  const cx=camX, cy=camY;
+  ctx.drawImage(worldC,cx,cy,VW,VH,0,0,VW,VH);
+  const p=painter(ctx,-cx,-cy,1);
+  const t0x=Math.floor(cx/TS), t0y=Math.floor(cy/TS);
+  for(let ty=t0y; ty<=t0y+15; ty++) for(let tx=t0x; tx<=t0x+21; tx++){
+    const ch=tileCh(tx,ty), x=tx*TS, y=ty*TS;
+    if(ch==="L"){ p(x+7,y+6,2,10,"#3a2a1a"); p(x+4,y+1,8,7,"#5a4020"); const fl=0.8+Math.sin(time*9+tx)*0.2; ctx.globalAlpha=fl; p(x+5,y+2,6,5,"#ffe080"); ctx.globalAlpha=1; p(x+6,y+3,2,2,"#fffbe0"); }
+    if(ch==="T"){ p(x+2,y+3,12,12,"#4a4250"); p(x+3,y+4,10,10,"#5a5262"); for(let i=0;i<4;i++) p(x+4,y+6+i*2,8-(i%2)*3,1,"#2a2430"); }
+    if(ch==="r"){ const r=RUNES.find(q=>q.x===tx&&q.y===ty); const lit=runeProg.indexOf(r.g)>=0;
+      p(x+1,y+2,14,13,"#3a3448"); p(x+2,y+3,12,11,"#4a445a"); drawGlyph(ctx,x+4-cx,y+5-cy,r.g,lit?"#7fffe8":"#2a2438");
+      if(G.attr==="feather" && !lit){ const n=RUNE_ORDER.indexOf(r.g)+1; for(let i=0;i<n;i++) p(x+3+i*3,y,2,1,"#c8f0ff"); } }
+    if(ch==="R"){ p(x+3,y+5,10,10,"#3a3448"); p(x+5,y+7,6,1,"#c8a040"); p(x+5,y+7,1,5,"#c8a040"); p(x+5,y+11,6,1,"#c8a040"); p(x+10,y+9,1,3,"#c8a040"); }
+    if(ch==="X"){ const beat=Math.max(0,Math.sin(time*3.2))**8; p(x-2,y+2,20,14,"#2a1a14"); p(x+4,y+6,8,6,"#5a1018"); p(x+6,y+7,4+Math.round(beat*2),4,"#e03040"); }
+    if(ch==="G"&&!G.runeSolved){ for(let i=0;i<4;i++) p(x+2+i*4,y,2,16,"#3a2a1a"); p(x,y+3,16,2,"#2d5a32"); p(x,y+11,16,2,"#2d5a32"); drawGlyph(ctx,x+4-cx,y+4-cy,"moon","#5a8aa0"); }
+    if(ch==="H"&&!G.platesSolved){ for(let i=0;i<4;i++) p(x+1+i*4,y,3,16,"#4a2a18"); p(x,y+7,16,2,"#2d5a32"); }
+    if(ch==="h"){ /* drawn later over Felix */ }
+    if(ch==="C" && G.attr==="feather" && !G.secret && Math.sin(time*3)>0){ p(x+6,y+8,1,1,"#c8f0ff"); p(x+9,y+11,1,1,"#c8f0ff"); }
+  }
+  PLATES.forEach(pl=>{ const on=!!blockAt(pl.x,pl.y); p(pl.x*TS+1,pl.y*TS+1,14,14,on?"#4a6a4a":"#2a2a30"); p(pl.x*TS+3,pl.y*TS+3,10,10,on?"#7ac87a":"#3a3a44"); });
+  blocks.forEach(b=>{ p(b.px+1,b.py+1,14,14,"#5a5266"); p(b.px+2,b.py+2,12,3,"#7a7286"); p(b.px+1,b.py+13,14,2,"#2a2434"); drawGlyph(ctx,Math.round(b.px)+5-cx,Math.round(b.py)+5-cy,"vine","#3a344a"); });
+  jars.forEach(j=>{ const x=j.x*TS, y=j.y*TS+Math.round(Math.sin(time*3+j.x)); p(x+5,y+5,6,8,"#2a3a4a"); p(x+5,y+4,6,2,"#8a6a3a"); if(Math.sin(time*6+j.y)>-0.3) p(x+7,y+8,2,2,"#f8ffb0"); });
+  SHARDS.forEach(s=>{ if(G.shards.indexOf(s.id)>=0) return; const x=s.x*TS+8, y=s.y*TS+6+Math.round(Math.sin(time*2.4+s.x)*1.5); const col=GAMES[s.id].col;
+    p(x,y-3,1,1,col); p(x-1,y-2,3,1,col); p(x-2,y-1,5,2,col); p(x-1,y+1,3,1,col); p(x,y+2,1,1,col); p(x,y-1,1,1,"#ffffff"); });
+  portals.forEach(pt=>{ const x=pt.x*TS+8, y=pt.y*TS+8, col=GAMES[pt.id].col; disc(p,x,y,5,6,"#0a0612");
+    for(let i=0;i<12;i++){ const a=i/12*Math.PI*2+time*2; p(x+Math.cos(a)*7,y+Math.sin(a)*8,1,1,col); }
+    for(let i=0;i<4;i++){ const a=-i/4*Math.PI*2-time*3; p(x+Math.cos(a)*3,y+Math.sin(a)*3,1,1,"#ffffff"); } });
+  // bramblewick in his nook
+  ctx.drawImage(badgerSpr,BRAMBLE_POS.x*TS+1-cx,BRAMBLE_POS.y*TS+6-cy);
+  p(BRAMBLE_POS.x*TS+14,BRAMBLE_POS.y*TS+8,4,6,"#2a3a4a"); if(Math.floor(time*4)%2) p(BRAMBLE_POS.x*TS+15,BRAMBLE_POS.y*TS+10,1,1,"#f8ffb0");
+  // hush body (only visible where light reaches)
+  const drawFelix=()=>{ const spr=(P.face>0?felixR:felixL)[P.moving?(Math.floor(P.anim*8)%2):0];
+    ctx.globalAlpha=P.hidden?0.45:1; ctx.drawImage(spr,Math.round(P.x-9-cx),Math.round(P.y-12-cy)); ctx.globalAlpha=1; };
+  const drawHush=()=>{ if(!HUSH.active) return; const sx=Math.round(HUSH.x-cx), sy=Math.round(HUSH.y-cy), sw=Math.sin(time*1.7);
+    for(let i=0;i<26;i++){ const w=i<6?3:(i<20?5:4); ctx.fillStyle=i%7===3?"#140c1c":"#0a0710"; ctx.fillRect(sx-Math.floor(w/2)+Math.round(sw*i/26),sy-26+i,w,1); }
+    ctx.fillStyle="#0a0710"; for(let i=0;i<18;i++){ ctx.fillRect(sx-4-Math.round(i/8),sy-20+i,1,1); ctx.fillRect(sx+4+Math.round(i/8),sy-20+i,1,1); }
+    const tilt=Math.round(Math.sin(time*0.9)*1.5);
+    ctx.fillStyle="#cfcabd"; ctx.fillRect(sx-2+tilt,sy-33,5,7); ctx.fillRect(sx-1+tilt,sy-34,3,1);
+    ctx.fillStyle="#08060a"; ctx.fillRect(sx-1+tilt,sy-31,1,2); ctx.fillRect(sx+1+tilt,sy-31,1,2); };
+  if(HUSH.active && HUSH.y<P.y){ drawHush(); drawFelix(); } else { drawFelix(); drawHush(); }
+  // hanging vine curtains over everything at their tile
+  for(let ty=t0y; ty<=t0y+15; ty++) for(let tx=t0x; tx<=t0x+21; tx++){ if(tileCh(tx,ty)!=="h") continue; const x=tx*TS, y=ty*TS;
+    for(let i=0;i<6;i++){ const vx=x+1+i*3; for(let j=-6;j<15;j++){ const sx_=vx+Math.round(Math.sin(time*1.2+j*0.4+i)*0.8); if((j+i)%3) p(sx_,y+j,1,1,j%4?"#2d5a32":"#4f9a48"); } } }
+  // darkness
+  dg.globalCompositeOperation="source-over"; dg.fillStyle="rgba(2,1,6,0.965)"; dg.fillRect(0,0,VW,VH);
+  dg.globalCompositeOperation="destination-out";
+  const lr=16+G.light*0.55+Math.sin(time*11)*1.2;
+  hole(P.x-cx,P.y-6-cy,lr,1);
+  LANTERNS.forEach(l=>hole(l.x*TS+8-cx,l.y*TS+5-cy,48+Math.sin(time*7+l.x)*2,1));
+  RUNES.forEach(r=>{ if(runeProg.indexOf(r.g)>=0) hole(r.x*TS+8-cx,r.y*TS+8-cy,22,0.9); });
+  portals.forEach(pt=>hole(pt.x*TS+8-cx,pt.y*TS+8-cy,26,0.85));
+  jars.forEach(j=>hole(j.x*TS+8-cx,j.y*TS+9-cy,10,0.6));
+  SHARDS.forEach(s=>{ if(G.shards.indexOf(s.id)<0) hole(s.x*TS+8-cx,s.y*TS+6-cy,G.attr==="feather"?24:9,G.attr==="feather"?0.9:0.5); });
+  hole(34*TS+8-cx,25*TS+10-cy,40,0.7);
+  hole(BRAMBLE_POS.x*TS+16-cx,BRAMBLE_POS.y*TS+11-cy,14,0.7);
+  dg.globalCompositeOperation="source-over";
+  ctx.drawImage(darkC,0,0);
+  // hush eyes glint in the dark — always
+  if(HUSH.active){ const d=Math.hypot(P.x-HUSH.x,P.y-HUSH.y); if(d<170){ const tilt=Math.round(Math.sin(time*0.9)*1.5); const sx=Math.round(HUSH.x-cx), sy=Math.round(HUSH.y-cy);
+    ctx.globalAlpha=clamp(1.3-d/170,0.2,1)*(Math.sin(time*5)>-0.7?1:0.2); ctx.fillStyle=HUSH.mode==="chase"?"#ff5a6a":"#e8f0ff"; ctx.fillRect(sx-1+tilt,sy-31,1,1); ctx.fillRect(sx+1+tilt,sy-31,1,1); ctx.globalAlpha=1; } }
+  if(HUSH.active && HUSH.mode==="chase"){ ctx.globalAlpha=0.12+Math.sin(time*8)*0.05; ctx.fillStyle="#600010"; ctx.fillRect(0,0,VW,VH); ctx.globalAlpha=1; }
+}
+function drawHUD(){
+  ctx.fillStyle="rgba(8,4,14,0.8)"; ctx.fillRect(4,32,98,30); ctx.strokeStyle="#4a3a5a"; ctx.strokeRect(4.5,32.5,97,29);
+  ctx.fillStyle="#f8ffb0"; ctx.fillRect(9,37,3,3); drawText(ctx,"LIGHT",15,36,{c:"#c8b8d8"});
+  ctx.fillStyle="#2a2030"; ctx.fillRect(48,37,50,5); ctx.fillStyle=G.light>25?"#f0d060":"#e05040"; ctx.fillRect(48,37,Math.round(G.light/2),5);
+  drawText(ctx,"JAR X"+G.jars,9,47,{c:"#a8d0e0"});
+  GAME_ORDER.forEach((id,i)=>{ const got=G.shards.indexOf(id)>=0; ctx.fillStyle=got?GAMES[id].col:"#2a2030"; ctx.fillRect(58+i*8,48,5,6); });
+  const at=ATTRS.find(a=>a.id===G.attr); if(at) drawText(ctx,at.name+(G.attr==="grin"?(grinCharge?" *":" -"):""),VW-4,34,{c:"#8a7a9a",align:"right"});
+  if(P.hidden) drawText(ctx,"HIDDEN",VW/2,40,{c:"#7ac87a",align:"center",shadow:"#000"});
+  if(areaT>0){ ctx.globalAlpha=clamp(areaT,0,1); drawText(ctx,areaName,VW/2,52,{c:"#e8dcc8",align:"center",shadow:"#000"}); ctx.globalAlpha=1; }
+  if(P.near && !DLG){ const s=VERB[P.near.kind]; const sx=clamp(P.near.x-camX,30,VW-30), sy=P.near.y-camY-16;
+    const w=textWidth("[A] "+s)+6; ctx.fillStyle="rgba(8,4,14,0.85)"; ctx.fillRect(sx-w/2,sy-2,w,11); drawText(ctx,"[A] "+s,sx,sy,{c:"#fff6c8",align:"center"}); }
+  if(toast && !DLG){ const w=Math.min(VW-12,textWidth(toast.t?toast.txt:"")+10); const lines=wrap(toast.txt,50);
+    ctx.fillStyle="rgba(8,4,14,0.88)"; ctx.fillRect((VW-w)/2,VH-18-lines.length*9,w,lines.length*9+6);
+    lines.forEach((ln,i)=>drawText(ctx,ln,VW/2,VH-15-lines.length*9+i*9,{c:"#fbf1dc",align:"center"})); }
+}
+
+/* ---- title / pause / end ---- */
+let saveData=loadSave();
+function openTitleMenu(){
+  saveData=loadSave();
+  const items=[{label:"NEW GAME",fn:()=>{ newGame(); }}];
+  if(saveData&&saveData.attr) items.unshift({label:saveData.ch1Done?"CONTINUE (EXPLORE)":"CONTINUE",fn:()=>{ G=saveData; MENU=null; beginPlay(false); }});
+  items.push({label:"MEMORIES",fn:()=>openMemories(openTitleMenu),disabled:!(saveData&&saveData.shards&&saveData.shards.length)});
+  items.push({label:"BACK TO THE HUB",fn:()=>{ fadeOutTo("hub.html"); }});
+  openMenu({title:"",items,x:96,y:128,w:128,noBack:true});
+}
+function newGame(){ MENU=null; G=freshState(); try{ localStorage.removeItem(SAVE_KEY); }catch(e){} state="scene"; runScript(SCRIPT_OPEN); }
+function openMemories(back){
+  const src=(state==="title")?(saveData||G):G;
+  openMenu({title:"MEMORIES (ECHO SHARDS)",x:30,y:44,w:260,items:GAME_ORDER.map(id=>{ const got=src.shards&&src.shards.indexOf(id)>=0;
+    return {label:got?GAMES[id].name:"??? (UNFOUND SHARD)",disabled:!got,fn:()=>{ if(state!=="title") saveGame(); fadeOutTo(GAMES[id].href); }}; }).concat([{label:"BACK",fn:()=>back()}]),onBack:()=>back()});
+}
+function openPauseMenu(){
+  openMenu({title:"PAUSED",x:80,y:50,w:160,items:[
+    {label:"RESUME",fn:()=>{ MENU=null; }},
+    {label:"MEMORIES",fn:()=>openMemories(openPauseMenu),disabled:!G.shards.length},
+    {label:muted?"UNMUTE MUSIC":"MUTE MUSIC",fn:()=>{ setMuted(!muted); openPauseMenu(); }},
+    {label:"SAVE & BACK TO HUB",fn:()=>{ saveGame(); fadeOutTo("hub.html"); }},
+    {label:"TITLE SCREEN",fn:()=>{ saveGame(); MENU=null; toTitle(); }}],onBack:()=>{ MENU=null; }});
+}
+function openEndMenu(){
+  openMenu({title:"",x:84,y:146,w:152,noBack:true,items:[
+    {label:"KEEP EXPLORING",fn:()=>{ MENU=null; G.cp={x:34*TS+8,y:18*TS+10}; saveGame(); beginPlay(false); }},
+    {label:"MEMORIES",fn:()=>openMemories(openEndMenu),disabled:!G.shards.length},
+    {label:"BACK TO THE HUB",fn:()=>fadeOutTo("hub.html")}]});
+}
+function toTitle(){ state="title"; SCR=null; DLG=null; playTrack("void"); openTitleMenu(); }
+function drawTitle(){
+  bgVoid();
+  // hal's many eyes open one by one in the dark
+  for(let i=0;i<14;i++){ const a=i/14*Math.PI*2+time*0.1, r=70+((i*13)%30); const x=160+Math.cos(a)*r*1.4, y=80+Math.sin(a)*r*0.6;
+    if(((i*7+Math.floor(time*1.2))%9)>2){ ctx.fillStyle="#fffbe8"; ctx.fillRect(x-1|0,y|0,3,1); ctx.fillStyle="#2a1a08"; ctx.fillRect(x|0,y|0,1,1); } }
+  portraitDraw(ctx,"hal_uncanny",124,22,2,0,time);
+  drawText(ctx,"VINECROWN",VW/2,96,{s:3,c:"#ffd56a",align:"center",shadow:"#4a1020"});
+  drawText(ctx,"THE HOLLOW BENEATH",VW/2,120,{c:"#c8b8e8",align:"center",shadow:"#000"});
+  if(!MENU) openTitleMenu();
+  drawText(ctx,"CHAPTER ONE: I'LL BE THE MYSTERY",VW/2,VH-12,{c:"#7a6a8a",align:"center"});
+}
+function drawEnd(){
+  bgVoid();
+  ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(0,0,VW,VH);
+  drawText(ctx,"TO BE CONTINUED",VW/2,30,{s:2,c:"#ff5a6a",align:"center",shadow:"#300010"});
+  drawText(ctx,"END OF CHAPTER ONE",VW/2,52,{c:"#c8b8e8",align:"center"});
+  const at=ATTRS.find(a=>a.id===G.attr);
+  drawText(ctx,"FELIX: "+(at?at.name:""),VW/2,72,{c:"#e8a860",align:"center"});
+  drawText(ctx,"ECHO SHARDS: "+G.shards.length+"/5",VW/2,86,{c:"#fbf1dc",align:"center"});
+  GAME_ORDER.forEach((id,i)=>{ const got=G.shards.indexOf(id)>=0; drawText(ctx,got?GAMES[id].name:"???",VW/2,100+i*9,{c:got?GAMES[id].col:"#4a3a5a",align:"center"}); });
+  drawText(ctx,"PROGRESS SAVED",VW/2,VH-10,{c:"#6a5a7a",align:"center"});
+}
+
+/* ---- main loop ---- */
+let lastTs=0;
+function frame(ts){
+  const dt=Math.min(0.05, lastTs?(ts-lastTs)/1000:0.016); lastTs=ts; time+=dt;
+  tickMusic();
+  if(scene.flash>0) scene.flash=Math.max(0,scene.flash-dt*1.5);
+  if(scene.shake>0) scene.shake=Math.max(0,scene.shake-dt);
+  if(fadeT>0){ fadeT+=dt; if(fadeT>0.7 && fadeHref){ const h=fadeHref; fadeHref=null; window.location.href=h; } }
+  else if(MENU) updateMenu();
+  else if(DLG) updateDialog(dt);
+  else if(state==="select") updateSelect();
+  else if(state==="play") updatePlay(dt);
+  else if(state==="caught"){ caughtT+=dt; if(caughtT>4.2||(caughtT>1.6&&(take("a")||tapQ))){ tapQ=null; respawn(); } }
+  else if(state==="title"){ if(!MENU) openTitleMenu(); }
+  pressed.clear(); tapQ=null;
+  ctx.save();
+  if(scene.shake>0) ctx.translate(Math.round((Math.random()-0.5)*4*scene.shake),Math.round((Math.random()-0.5)*4*scene.shake));
+  if(state==="title") drawTitle();
+  else if(state==="select") drawSelect();
+  else if(state==="end") drawEnd();
+  else if(state==="play"||state==="caught"){ drawWorld(); drawHUD();
+    if(state==="caught"){ const a=clamp(caughtT/0.8,0,1); ctx.fillStyle="rgba(0,0,0,"+a+")"; ctx.fillRect(-4,-4,VW+8,VH+8);
+      if(caughtT>0.9){ ctx.globalAlpha=clamp((caughtT-0.9)*2,0,1); wrap(caughtLine,40).forEach((ln,i)=>drawText(ctx,ln,VW/2,96+i*11,{c:"#c8c0d8",align:"center"})); ctx.globalAlpha=1; } } }
+  else if(state==="scene"){ if(DLG&&DLG.card) drawCardArt(DLG.step.art); else { drawSceneBg(scene.bg); drawStage(); } }
+  if(scene.flash>0){ ctx.globalAlpha=scene.flash*0.6; ctx.fillStyle="#fff8e0"; ctx.fillRect(-4,-4,VW+8,VH+8); ctx.globalAlpha=1; }
+  ctx.restore();
+  drawDialog();
+  drawMenu();
+  if(fadeT>0){ ctx.fillStyle="rgba(0,0,0,"+clamp(fadeT/0.6,0,1)+")"; ctx.fillRect(0,0,VW,VH); }
+  requestAnimationFrame(frame);
+}
+function fit(){
+  const vv=window.visualViewport; const sw=(vv&&vv.width)?vv.width:window.innerWidth, sh=(vv&&vv.height)?vv.height:window.innerHeight;
+  const portraitTouch=touchy && sh>sw; let s=Math.min(sw/VW, (portraitTouch?sh-190:sh)/VH); if(s>1){ const is=Math.floor(s); if(s-is<0.12) s=is; } s=Math.max(s,0.5);
+  cv.style.width=Math.round(VW*s)+"px"; cv.style.height=Math.round(VH*s)+"px";
+}
+window.addEventListener("resize",fit); if(window.visualViewport) window.visualViewport.addEventListener("resize",fit);
+fit(); cv.focus(); playTrack("void");
+window.__vc={get state(){return state;}, get G(){return G;}, P, HUSH, get DLG(){return DLG;}, get MENU(){return MENU;}, get blocks(){return blocks;}, runeProg:()=>runeProg};
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
