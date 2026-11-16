@@ -674,7 +674,7 @@ PORT.wraith=function(p,f,t){
 };
 const PORT_SIZE={felix:48, cub:48, wraith:48};
 const PORT_BG={
-  felix:["#12040a","#320a12","#5e1418","#8a2418"], cub:["#18264a","#3a4a7a","#8a7aa8","#e0a878"], hal_comfort:["#2a1430","#6a2a40","#b8583a","#e8a048"],
+  felix:["#0c080e","#1a121c","#2a1e28","#3a2a30"], cub:["#0a0e16","#141c2a","#22304a","#344868"], hal_comfort:["#2a1430","#6a2a40","#b8583a","#e8a048"],
   hal_uncanny:["#0a1030","#14306a","#2a6aa8","#7fd3ff"], hal_dread:["#040206","#1a0612","#3a0a1a","#5a1020"], bramble:["#1a1030","#3a2a50","#7a4a6a","#c87a5a"],
   force1:["#06040a","#100c18","#1a1424"], force2:["#06040a","#100c18","#1a1424"], force3:["#06040a","#100c18","#1a1424"], wraith:["#04080a","#0a1a12","#16301e"]
 };
@@ -682,19 +682,227 @@ const _pbg={};
 function portraitBg(key,w,h){
   const id=key+w+"x"+h; if(_pbg[id]) return _pbg[id];
   const [c,g]=mk(w,h); ditherFill(g,0,0,w,h,PORT_BG[key]||["#120c1a","#1a1024"],{radial:true,cy:0.45,r:1.3});
-  if(key==="felix"){ const p=painter(g,0,0,w/48); // blood moon + red canyon spires (from Simba's refs)
-  disc(p,40,8,7.5,7.5,"#c8442a"); disc(p,39,7,6.5,6.5,"#e8643a"); disc(p,38,6,3,3,"#f08a5a"); p(41,10,2,2,"#c8442a"); p(37,9,1,1,"#c8442a"); p(43,6,1,1,"#c8442a");
-  p(0,24,4,24,"#4a1414"); p(1,20,2,4,"#4a1414"); p(44,28,4,20,"#4a1414"); p(45,24,2,4,"#4a1414");
-  }
   _pbg[id]=c; return c;
 }
-function portraitDraw(g,key,x,y,D,f,t){ const fn=PORT[key]; if(!fn) return; const sz=PORT_SIZE[key]||36; fn(painter(g,x,y,D/sz),f,t); }
+function portraitDraw(g,key,x,y,D,f,t){ if(key==="felix"||key==="cub"){ bustDraw(g,key,x,y,D,f,t); return; } const fn=PORT[key]; if(!fn) return; const sz=PORT_SIZE[key]||36; fn(painter(g,x,y,D/sz),f,t); }
+
+/* ---- Felix v4: anime / RPG-horror bust portraits (96x96, drawn at 2x and downsampled; clean outlines, cel shading, rim light).
+   Matched to Simba's primary design (felix_oasis_lying): calm sly face, warm brown-amber eyes, heavy dark brows,
+   closed-mouth crooked smile, cream muzzle/cheeks/chin, dark grey shaggy mane framing the face from a crown tuft down the neck,
+   feather necklace on red beads, golden-brown coat. Expressions: neutral, smirk, worried, scared, angry. ---- */
+const BUST_EX=["neutral","smirk","worried","scared","angry"];
+const PORTRAIT_EX={felix:"neutral",cub:"neutral"};
+const BC_={line:"#1c120d", coat:"#b8722f", coatL:"#d08e48", coatD:"#8e5420", coatDD:"#74421a", cream:"#f3e0bd", creamD:"#d8bd92",
+  mane:"#4a4950", maneL:"#6f6f79", maneD:"#2e2d33", maneB:"#5e5048", iris:"#8a4a1c", irisL:"#c98436", irisD:"#4e2610",
+  nose:"#6e3a30", noseL:"#a46458", ear:"#e9c3a2", brow:"#24160f", bead:["#b8321e","#d0583a","#8a2a18","#e07a2a"]};
+const _bustCache={};
+function bustCanvas(who,ex,blink,talk,nF){
+  const id=who+ex+(blink?1:0)+(talk?1:0)+nF; if(_bustCache[id]) return _bustCache[id];
+  const S=2, big=document.createElement("canvas"); big.width=big.height=96*S; const g=big.getContext("2d");
+  g.scale(S,S); g.lineJoin="round"; g.lineCap="round";
+  try{ (who==="cub"?drawCubBust:drawFelixBust)(g,ex,blink,talk,nF); }catch(e){ console.error(e); }
+  const c=document.createElement("canvas"); c.width=c.height=96; const cg=c.getContext("2d"); cg.imageSmoothingEnabled=true; cg.imageSmoothingQuality="high";
+  cg.drawImage(big,0,0,96,96); _bustCache[id]=c; return c;
+}
+/* path helpers */
+function _smooth(g,pts){ g.beginPath(); const n=pts.length; let m=[(pts[n-1][0]+pts[0][0])/2,(pts[n-1][1]+pts[0][1])/2]; g.moveTo(m[0],m[1]);
+  for(let i=0;i<n;i++){ const p=pts[i], q=pts[(i+1)%n]; g.quadraticCurveTo(p[0],p[1],(p[0]+q[0])/2,(p[1]+q[1])/2); } g.closePath(); }
+function _poly(g,pts){ g.beginPath(); g.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) g.lineTo(pts[i][0],pts[i][1]); g.closePath(); }
+function _fill(g,fill,lw,stroke){ g.fillStyle=fill; g.fill(); if(lw){ g.lineWidth=lw; g.strokeStyle=stroke||BC_.line; g.stroke(); } }
+function _stroke(g,pts,col,lw,close){ g.beginPath(); g.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) g.lineTo(pts[i][0],pts[i][1]); if(close) g.closePath(); g.strokeStyle=col; g.lineWidth=lw; g.stroke(); }
+function _curve(g,a,c,b,col,lw){ g.beginPath(); g.moveTo(a[0],a[1]); g.quadraticCurveTo(c[0],c[1],b[0],b[1]); g.strokeStyle=col; g.lineWidth=lw; g.stroke(); }
+function _ell(g,x,y,rx,ry,rot){ g.beginPath(); g.ellipse(x,y,rx,ry,rot||0,0,Math.PI*2); }
+/* shaggy tufted outline: list of [x,y] anchor points; tufts jut outward from centroid */
+function _shag(g,pts,len,seed){
+  let cx=0,cy=0; pts.forEach(p=>{cx+=p[0];cy+=p[1];}); cx/=pts.length; cy/=pts.length;
+  const out=[]; for(let i=0;i<pts.length;i++){ const p=pts[i], q=pts[(i+1)%pts.length]; out.push(p);
+    const mx=(p[0]+q[0])/2, my=(p[1]+q[1])/2, dx=mx-cx, dy=my-cy, d=Math.hypot(dx,dy)||1, l=len*(0.6+0.8*Math.abs(Math.sin(i*2.3+seed)));
+    out.push([mx+dx/d*l+Math.sin(i+seed)*1.5, my+dy/d*l]); }
+  _poly(g,out);
+}
+function _strands(g,x0,y0,x1,y1,n,cols,lw,curve){
+  for(let i=0;i<n;i++){ const t=i/(n-1||1); const x=x0+(x1-x0)*t, y=y0+(y1-y0)*t*0.2; const L=8+((i*37)%7);
+    _curve(g,[x,y],[x+(curve||0)+Math.sin(i)*2,y+L*0.5],[x+(curve||0)*1.6+Math.sin(i*1.7)*2,y+L],cols[i%cols.length],lw); }
+}
+function _feather(g,x,y,len,rot,col,band,tip){
+  g.save(); g.translate(x,y); g.rotate(rot);
+  _ell(g,0,len/2,2.1,len/2,0); _fill(g,col,0.8);
+  g.save(); _ell(g,0,len/2,2.1,len/2,0); g.clip(); g.fillStyle=band; g.fillRect(-3,len*0.35,6,1.4); g.fillRect(-3,len*0.6,6,1.2); if(tip){ g.fillStyle=tip; g.fillRect(-3,len*0.82,6,len); } g.restore();
+  _stroke(g,[[0,-1],[0,len]],"#3a2a1e",0.6); g.restore();
+}
+function _eyes(g,o){ // o: {L:[x,y],R:[x,y],w,h,ex,blink,iris,pupil,cub}
+  const ex=o.ex;
+  [o.L,o.R].forEach((c,idx)=>{
+    const [x,y]=c, w=o.w, h=o.h*(ex==="scared"?1.25:1)*(ex==="angry"?0.8:1);
+    if(o.blink){ _curve(g,[x-w,y],[x,y+h*0.55],[x+w,y],BC_.line,1.6); return; }
+    // white of the eye (small, cream) + big warm iris
+    g.save(); _ell(g,x,y,w,h,0); _fill(g,"#fbf2df",0); g.clip();
+    const ir=o.iris*(ex==="scared"?0.78:1), px=x+(ex==="scared"?0:(idx?-0.8:-1.2)), py=y+0.4;
+    const grd=g.createLinearGradient(0,py-ir,0,py+ir); grd.addColorStop(0,BC_.irisD); grd.addColorStop(0.45,BC_.iris); grd.addColorStop(1,BC_.irisL);
+    _ell(g,px,py,ir,ir*1.08,0); g.fillStyle=grd; g.fill();
+    _ell(g,px,py,o.pupil*(ex==="scared"?0.45:ex==="angry"?0.7:1),o.pupil*1.15*(ex==="scared"?0.45:1),0); g.fillStyle="#120806"; g.fill();
+    _ell(g,px-ir*0.38,py-ir*0.42,ir*0.32,ir*0.3,0); g.fillStyle="#fffaf0"; g.fill();
+    _ell(g,px+ir*0.42,py+ir*0.45,ir*0.14,ir*0.14,0); g.fillStyle="rgba(255,250,240,0.85)"; g.fill();
+    // sly half-lid (neutral/smirk) or heavy lid (angry)
+    const lid=ex==="neutral"?0.32:ex==="smirk"?0.42:ex==="angry"?0.4:ex==="worried"?0.18:0;
+    if(lid){ g.fillStyle=o.lidCol; if(ex==="angry"){ const s=idx?-1:1; _poly(g,[[x-w-1,y-h-1],[x+w+1,y-h-1],[x+w+1,y-h+h*2*lid*(s>0?1.5:0.5)],[x-w-1,y-h+h*2*lid*(s>0?0.5:1.5)]]); }
+      else _poly(g,[[x-w-1,y-h-1],[x+w+1,y-h-1],[x+w+1,y-h+h*2*lid],[x-w-1,y-h+h*2*lid]]); g.fill(); }
+    g.restore();
+    // outline: thick upper lash line with a little flick, thin lower line
+    const top=y-h+(lid?h*2*lid:0);
+    g.save(); g.lineWidth=0.8; g.strokeStyle=BC_.line; _ell(g,x,y,w,h,0); g.stroke(); g.restore();
+    const fl=idx? 1:-1;
+    _curve(g,[x-w-0.5,y+(lid?h*(2*lid-1)*0.6:0)],[x,top-0.6],[x+w+0.5,y+(lid?h*(2*lid-1)*0.6:0)],BC_.line,1.9);
+    _stroke(g,[[x+fl*w,y-0.5],[x+fl*(w+2.2),y-1.8]],BC_.line,1.3);
+    _curve(g,[x-w*0.7,y+h+0.2],[x,y+h+1],[x+w*0.7,y+h+0.2],"rgba(40,22,14,0.55)",0.7);
+  });
+}
+function _brows(g,L,R,ex,lw,len){
+  // each brow: inner point -> outer point, with an arch. Felix's right brow (viewer's right) sits higher: the crooked look.
+  const set={neutral:[[-1,0.5],[ -3.2, 0]], smirk:[[0.5,-0.5],[-4.5,-1.5]], worried:[[-4,-0.5],[-3.2,-0.4]], scared:[[-5,-3],[-5,-3]], angry:[[3.5,-1.5],[3.5,-1.5]]}[ex]||[[0,0],[0,0]];
+  [[L,1,set[0]],[R,-1,set[1]]].forEach(([c,dir,s])=>{
+    const [x,y]=c; const inner=[x+dir*len*0.45, y+s[0]], outer=[x-dir*len*0.6, y+s[1]+ (ex==="worried"?2:0)];
+    const mid=[(inner[0]+outer[0])/2,(Math.min(inner[1],outer[1]))-1.8];
+    g.beginPath(); g.moveTo(inner[0],inner[1]+lw*0.35); g.quadraticCurveTo(mid[0],mid[1],outer[0],outer[1]); g.quadraticCurveTo(mid[0],mid[1]+lw*0.9,inner[0],inner[1]+lw*0.9); g.closePath();
+    g.fillStyle=BC_.brow; g.fill(); g.lineWidth=0.6; g.strokeStyle=BC_.brow; g.stroke();
+  });
+}
+function _mouth(g,cx,y,ex,talk,s){ // s = scale
+  const L=BC_.line;
+  _stroke(g,[[cx,y-2.5*s],[cx,y]],L,1.1);
+  if(ex==="neutral"||ex==="smirk"){
+    // closed crooked smile: short on his right (viewer's left), long + lifted on his left
+    _curve(g,[cx,y],[cx-3*s,y+1.6*s],[cx-6*s,y+0.4*s],L,1.25);
+    _curve(g,[cx,y],[cx+5*s,y+2*s],[cx+9*s,y-2.2*s],L,1.25);
+    _stroke(g,[[cx+9*s,y-2.2*s],[cx+10.2*s,y-3.2*s]],L,1);
+    if(ex==="smirk"||talk){ _poly(g,[[cx+2*s,y+1.2*s],[cx+8*s,y-0.4*s],[cx+6*s,y+(talk&&ex!=="smirk"?2.6:3.2)*s],[cx+2.5*s,y+2.6*s]]); _fill(g,"#5a1c1a",0.9,L);
+      if(ex==="smirk"){ _poly(g,[[cx+5.4*s,y+0.2*s],[cx+7.2*s,y-0.2*s],[cx+6.4*s,y+2.4*s]]); _fill(g,"#fffaf0",0.5,L); } }
+  } else if(ex==="worried"){
+    _curve(g,[cx-5*s,y+2*s],[cx-2*s,y+0.4*s],[cx,y+1*s],L,1.15); _curve(g,[cx,y+1*s],[cx+3*s,y+0.4*s],[cx+5.5*s,y+2.2*s],L,1.15);
+    if(talk){ _ell(g,cx+0.2,y+2.6*s,2.2*s,1.4*s,0); _fill(g,"#5a1c1a",0.9); }
+  } else if(ex==="scared"){
+    _ell(g,cx,y+3*s,(talk?3:2.4)*s,(talk?3.4:2.6)*s,0); _fill(g,"#4a1416",1.1); _ell(g,cx,y+4.6*s,1.6*s,0.9*s,0); g.fillStyle="#c85a5a"; g.fill();
+  } else if(ex==="angry"){
+    _poly(g,[[cx-7*s,y+0.6*s],[cx-3*s,y-0.4*s],[cx,y+0.2*s],[cx+3*s,y-0.4*s],[cx+7*s,y+0.6*s],[cx+5*s,y+(talk?5:4)*s],[cx-5*s,y+(talk?5:4)*s]]); _fill(g,"#4a1416",1.2);
+    [[-4.6,1],[4.6,-1]].forEach(([dx])=>{ _poly(g,[[cx+dx*s-1.3*s,y+0.2*s],[cx+dx*s+1.3*s,y+0.2*s],[cx+dx*s,y+2.8*s]]); _fill(g,"#fffaf0",0.5); });
+  }
+}
+function _whiskers(g,cx,y,s){ g.globalAlpha=0.45; [[-1,0],[1,0]].forEach(([d])=>{ for(let k=0;k<2;k++) _curve(g,[cx+d*14*s,y+k*2*s],[cx+d*19*s,y-1+k*1.6*s],[cx+d*25*s,y-2+k*3*s],"#fbf3e6",0.45); }); g.globalAlpha=1; }
+function _rimLight(g,clipFn,fromX,col){ g.save(); clipFn(); g.clip(); const gr=g.createLinearGradient(fromX,0,fromX+14,0); gr.addColorStop(0,col); gr.addColorStop(1,"rgba(255,210,150,0)"); g.fillStyle=gr; g.fillRect(fromX-2,0,16,96); g.restore(); }
+function _necklace(g,cx,y0,half,drop,nF,beadsOnly){
+  const pt=t=>{ const x=cx-half+t*half*2; return [x, y0+(1-Math.pow((x-cx)/half,2))*drop]; };
+  g.beginPath(); for(let i=0;i<=20;i++){ const p=pt(i/20); if(i) g.lineTo(p[0],p[1]); else g.moveTo(p[0],p[1]); } g.strokeStyle="#3a2416"; g.lineWidth=1.1; g.stroke();
+  const FE=[["#8a6446","#4a3424","#efe6d0"],["#efe6d0","#8a7a68",null],["#a07a52","#5a4030","#efe6d0"],["#e8dcc4","#8a7a6a","#6a4a30"],["#7a5a40","#3e2a1c","#d8cdb8"],["#efe6d0","#a08a6a",null],["#946a48","#4a3424",null]];
+  const n=beadsOnly?3:9; let fi=0;
+  for(let i=0;i<n;i++){ const t=(i+0.5)/n, p=pt(t);
+    if(!beadsOnly && i%2===1 && fi<nF){ const q=FE[fi++]; _feather(g,p[0],p[1]+1.6,17+(i%3)*4,(t-0.5)*0.6,q[0],q[1],q[2]); }
+    else if(!beadsOnly && i%2===0 && i>0 && i<n-1){ for(let k=0;k<3;k++){ _ell(g,p[0]+(t-0.5)*k,p[1]+3+k*2.6,1.2,1.2,0); _fill(g,BC_.bead[(i+k)%4],0.5); } }
+    _ell(g,p[0],p[1],1.9,1.9,0); _fill(g,BC_.bead[i%4],0.7); _ell(g,p[0]-0.6,p[1]-0.6,0.6,0.6,0); g.fillStyle="#f8a080"; g.fill();
+  }
+}
+function drawFelixBust(g,ex,blink,talk,nF){
+  const L=BC_.line;
+  // back mane: dark grey shag framing the head, falling down the neck to the shoulders
+  _shag(g,[[50,4],[66,8],[79,20],[84,40],[82,60],[86,80],[88,98],[12,98],[14,80],[18,60],[16,40],[21,20],[34,8]],4,1); _fill(g,BC_.maneD,1.2);
+  _shag(g,[[50,7],[64,11],[76,22],[80,42],[78,62],[82,98],[18,98],[22,62],[20,42],[24,22],[36,11]],3,3); _fill(g,BC_.mane,0);
+  g.save(); _poly(g,[[12,8],[88,8],[88,98],[12,98]]); g.clip(); _strands(g,18,26,82,26,18,[BC_.maneD,BC_.maneL,BC_.maneB],0.7,0); _strands(g,18,56,82,56,18,[BC_.maneD,BC_.maneB,BC_.maneL],0.7,0); _strands(g,20,78,80,78,16,[BC_.maneD,BC_.maneL],0.7,0); g.restore();
+  // shoulders + cream chest
+  _smooth(g,[[10,98],[16,80],[32,70],[50,68],[68,70],[84,80],[90,98]]); _fill(g,BC_.coat,1.2);
+  _smooth(g,[[22,98],[24,84],[30,76],[22,96]]); g.fillStyle=BC_.coatD; g.fill();
+  _smooth(g,[[36,98],[38,78],[44,66],[56,66],[62,78],[64,98]]); _fill(g,BC_.cream,1);
+  // front mane locks over the shoulders, framing the chest
+  _shag(g,[[24,44],[34,56],[36,74],[32,92],[22,96],[16,80],[18,58]],3.5,5); _fill(g,BC_.mane,1);
+  _shag(g,[[76,44],[82,58],[84,80],[78,96],[68,92],[64,74],[66,56]],3.5,7); _fill(g,BC_.mane,1);
+  _strands(g,20,56,34,56,5,[BC_.maneL,BC_.maneD],0.7,-1); _strands(g,66,56,80,56,5,[BC_.maneL,BC_.maneD],0.7,1);
+  // feather necklace on red beads
+  _necklace(g,50,76,18,9,nF);
+  // head group, drawn larger around the face centre
+  g.save(); g.translate(50,44); g.scale(1.2,1.2); g.translate(-50,-44);
+  // ears: golden outside, dark rims, cream-pink inside with grey tufts
+  const ears=[[[24,34],[25,12],[29,9],[42,22]],[[58,22],[71,9],[75,12],[76,34]]];
+  ears.forEach((e,i)=>{ _smooth(g,e); _fill(g,BC_.coat,1.2);
+    const inn=i?[[61,24],[71,13],[73,15],[73,32]]:[[27,32],[27,15],[29,13],[39,24]]; _smooth(g,inn); _fill(g,BC_.ear,0);
+    g.save(); _smooth(g,e); g.clip(); g.fillStyle="#3a2a24"; g.fillRect(i?66:22,6,12,6); g.restore();
+    _strands(g,i?63:29,26,i?71:37,26,3,[BC_.maneL,"#9a9aa2"],0.6,i?-1:1); });
+  // head
+  const head=[[30,25],[40,18],[50,17],[60,18],[70,25],[74,38],[72,52],[64,64],[56,70],[44,70],[36,64],[28,52],[26,38]];
+  _smooth(g,head); _fill(g,BC_.coat,1.3);
+  g.save(); _smooth(g,head); g.clip();
+  g.fillStyle=BC_.coatD; _smooth(g,[[60,20],[78,30],[80,62],[62,70],[66,50],[64,34]]); g.fill();      // cel shadow on his left side
+  g.fillStyle=BC_.coatL; _ell(g,46,24,14,6,-0.1); g.fill();                                              // forehead light
+  g.fillStyle=BC_.coatD; _poly(g,[[33,37],[46,35],[50,38],[54,35],[67,37],[67,40],[33,40]]); g.globalAlpha=0.55; g.fill(); g.globalAlpha=1; // brow shadow
+  g.restore();
+  _rimLight(g,()=>_smooth(g,head),27,"rgba(255,214,150,0.55)");
+  // cream cheeks / muzzle / chin + cream marks around the eyes
+  const muz=[[29,48],[36,46],[44,49],[50,50],[56,49],[64,46],[71,48],[69,58],[60,68],[50,71],[40,68],[31,58]];
+  _smooth(g,muz); _fill(g,BC_.cream,0.9);
+  g.save(); _smooth(g,muz); g.clip(); g.fillStyle=BC_.creamD; _ell(g,54,68,14,5,0); g.fill(); _ell(g,64,56,4,8,0); g.globalAlpha=0.6; g.fill(); g.globalAlpha=1; g.restore();
+  g.fillStyle=BC_.cream; _ell(g,39,47,6.5,1.8,0.12); g.fill(); _ell(g,61,47,6.5,1.8,-0.12); g.fill(); _ell(g,38,34.5,3,1.1,-0.2); g.fill(); _ell(g,62,34,3,1.1,0.2); g.fill();
+   // dark whisker pads
+  // eyes + brows
+  _eyes(g,{L:[39.5,41],R:[60.5,41],w:6.6,h:4.4,ex,blink,iris:3.9,pupil:1.7,lidCol:BC_.coat});
+  _brows(g,[39.5,35],[60.5,34.5],ex,2.9,13.5);
+  // nose
+  _smooth(g,[[45.5,52],[54.5,52],[52,55.9],[50,56.7],[48,55.9]]); _fill(g,BC_.nose,0.9);
+  _ell(g,48.6,53.1,1.4,0.8,0); g.fillStyle=BC_.noseL; g.fill();
+  _mouth(g,50,60,ex,talk,0.9);
+
+  // crown tuft: grey fringe on top of the head falling forward
+  _smooth(g,[[34,25],[35,16],[40,13],[42,6],[47,11],[52,4],[55,11],[61,8],[62,15],[67,17],[66,25],[60,22],[57,27],[53,23],[49,29],[46,24],[41,27],[38,24]]); _fill(g,BC_.mane,1.1);
+  _curve(g,[44,10],[45,17],[46,24],BC_.maneL,0.7); _curve(g,[53,8],[53,16],[52,23],BC_.maneL,0.7); _curve(g,[39,16],[41,20],[41,25],BC_.maneD,0.7); _curve(g,[60,12],[60,18],[58,23],BC_.maneD,0.7);
+  // little expression extras
+  if(ex==="scared"){ _smooth(g,[[73,30],[75.5,35],[74,38.5],[71.5,37],[71.5,34]]); _fill(g,"#cfe8ff",0.7,"#4a6a8a"); }
+  if(ex==="angry"){ _stroke(g,[[45,38],[48,36]],"rgba(60,30,20,0.8)",0.8); _stroke(g,[[55,36],[52,38]],"rgba(60,30,20,0.8)",0.8); }
+  g.restore();
+}
+function drawCubBust(g,ex,blink,talk){
+  // soft grey baby fluff (where the mane will grow)
+  _shag(g,[[50,56],[70,62],[80,80],[82,98],[18,98],[20,80],[30,62]],3,2); _fill(g,BC_.maneL,1.1);
+  _smooth(g,[[14,98],[22,80],[38,72],[62,72],[78,80],[86,98]]); _fill(g,BC_.coatL,1.2);
+  _smooth(g,[[36,98],[40,80],[50,74],[60,80],[64,98]]); _fill(g,BC_.cream,1);
+  _shag(g,[[32,66],[50,70],[68,66],[66,76],[50,80],[34,76]],2.5,4); _fill(g,BC_.maneL,0.9);
+  _strands(g,34,68,66,68,8,["#9a9aa2",BC_.mane],0.6,0);
+  // one red bead and a single feather on a string
+  _curve(g,[36,76],[50,84],[64,76],"#3a2416",1); _feather(g,53,82,13,0.15,"#efe6d0","#a08a6a","#6a4a30");
+  _ell(g,48,82.5,2.3,2.3,0); _fill(g,"#c03a22",0.7); _ell(g,47.3,81.8,0.7,0.7,0); g.fillStyle="#f8a080"; g.fill();
+  // big round ears
+  [[[18,40],[16,14],[22,10],[40,24]],[[60,24],[78,10],[84,14],[82,40]]].forEach((e,i)=>{ _smooth(g,e); _fill(g,BC_.coatL,1.2);
+    _smooth(g,i?[[63,26],[77,15],[80,18],[78,36]]:[[22,36],[20,18],[23,15],[37,26]]); _fill(g,"#f2c8ae",0);
+    g.save(); _smooth(g,e); g.clip(); g.fillStyle="#3a2a24"; g.fillRect(i?72:14,6,14,7); g.restore(); });
+  // big round head
+  const head=[[26,30],[38,20],[50,18],[62,20],[74,30],[80,46],[76,62],[64,72],[50,74],[36,72],[24,62],[20,46]];
+  _smooth(g,head); _fill(g,BC_.coatL,1.3);
+  g.save(); _smooth(g,head); g.clip(); g.fillStyle=BC_.coat; _smooth(g,[[64,20],[84,34],[84,66],[64,76],[70,52],[68,34]]); g.fill();
+  g.globalAlpha=0.35; g.fillStyle=BC_.coatD; [[34,28],[42,24],[58,24],[66,28],[28,44],[72,44],[30,56],[70,56]].forEach(s=>{ _ell(g,s[0],s[1],1.6,1.3,0); g.fill(); }); g.globalAlpha=1; // faint cub spots (they fade as he grows)
+  g.restore();
+  _rimLight(g,()=>_smooth(g,head),21,"rgba(220,230,255,0.45)");
+  const muz=[[36,58],[44,54],[50,56],[56,54],[64,58],[62,66],[50,72],[38,66]]; _smooth(g,muz); _fill(g,BC_.cream,0.9);
+  g.fillStyle=BC_.cream; _ell(g,37,38,5,1.6,0.1); g.fill(); _ell(g,63,38,5,1.6,-0.1); g.fill();
+  // big anime eyes
+  _eyes(g,{L:[37,46],R:[63,46],w:7.6,h:6.6,ex:ex==="neutral"?"cub":ex,blink,iris:5.6,pupil:2.4,lidCol:BC_.coatL});
+  _brows(g,[37,36.5],[63,36.5],ex==="smirk"?"smirk":ex,1.6,9);
+  if(ex!=="scared"&&ex!=="angry"){ g.globalAlpha=0.45; _ell(g,26,58,4,2,0); g.fillStyle="#f08a8a"; g.fill(); _ell(g,74,58,4,2,0); g.fill(); g.globalAlpha=1; }
+  _smooth(g,[[46.5,57.5],[53.5,57.5],[51.5,60.6],[50,61.2],[48.5,60.6]]); _fill(g,"#b86a62",0.8);
+  _mouth(g,50,63.5,ex==="neutral"?"neutral":ex,talk,0.75);
+  _whiskers(g,50,62,0.8);
+  _poly(g,[[42,22],[45,13],[48,19],[51,11],[54,19],[57,15],[58,24],[50,22]]); _fill(g,BC_.maneL,0.9);   // tiny crown fluff
+  if(ex==="worried"){ _smooth(g,[[29,52],[31,55.5],[29.5,58],[27.5,56.5]]); _fill(g,"rgba(200,230,255,0.85)",0.5,"#6a8aaa"); }
+  if(ex==="scared"){ _smooth(g,[[80,32],[82.5,37],[81,40.5],[78.5,39],[78.5,36]]); _fill(g,"#cfe8ff",0.7,"#4a6a8a"); }
+}
+function bustDraw(g,who,x,y,D,talk,t){
+  const ex=PORTRAIT_EX[who]||"neutral";
+  const blink=(t%(who==="cub"?2.7:3.4))<0.13;
+  const nF=(who==="felix"&&G&&G.choices&&G.choices.marker==="feather")?3:4;
+  const c=bustCanvas(who,ex,blink,!!talk,nF);
+  const sm=g.imageSmoothingEnabled; g.imageSmoothingEnabled=D<96; if(D<96) g.imageSmoothingQuality="high";
+  g.drawImage(c,Math.round(x),Math.round(y),D,D); g.imageSmoothingEnabled=sm;
+}
 
 /* ---- world sprites ---- */
 const OUT="#0a0608";
-const FELIX_PAL={T:"#b8803c",t:"#a06a30",c:"#f0dcb0",k:"#1e140e",e:"#f0b020",r:"#c83a22",o:"#e07a2a",w:"#e8e0cc",n:"#8a4a3a",G:"#62666e",g:"#9096a0",s:"#5e2e1a"};
+const FELIX_PAL={T:"#b8803c",t:"#a06a30",c:"#f0dcb0",k:"#1e140e",e:"#b8702a",r:"#c83a22",o:"#e07a2a",w:"#e8e0cc",n:"#8a4a3a",G:"#62666e",g:"#9096a0",s:"#5e2e1a"};
 const FELIX_TOP=[
-".kk.........k...k.",
+".kk.........kGG.k.",
 ".kk........GTTTTT.",
 "..t.......GGTeTTcc",
 "..t......GgTTTTcnk",
@@ -719,7 +927,7 @@ const WOLF_ROWS=[
 const wolfSpr=makeSprite(WOLF_ROWS,{k:"#2e3650",e:"#c8e0ff"},"#141828");
 const wolfSprL=flipH(wolfSpr);
 const CUB_ROWS=["......k.k.",".....TTTT.","t....TeTTc",".t.TTTTTT.","..TTsTTsT.","..TT.T.TT."];
-const cubSpr=makeSprite(["......k.k.",".....mTTm.","k...mTeTTc",".t.TTmTrT.","..TTTTTTT.","..TT.T.TT."],{T:"#cf9a52",t:"#a06a30",k:"#1e140e",e:"#e0a030",c:"#f0dcb0",m:"#8a8f98",r:"#c83a22"},"#1a1010");
+const cubSpr=makeSprite(["......k.k.",".....mTTm.","k...mTeTTc",".t.TTmTrT.","..TTTTTTT.","..TT.T.TT."],{T:"#cf9a52",t:"#a06a30",k:"#1e140e",e:"#b8702a",c:"#f0dcb0",m:"#8a8f98",r:"#c83a22"},"#1a1010");
 const WRAITH_ROWS=["...g.g...","..ggggg..",".gGeGeGg.",".ggggggg.","gggpgggg.","ggggggggg",".ggg.ggg.","g.g..g.g.","..g...g.."];
 const wraithSpr=[makeSprite(WRAITH_ROWS,{g:"#13201a",G:"#2d4a2a",e:"#9aff7a",p:"#f08aa8"},"#050806"),
   makeSprite(WRAITH_ROWS.map((r,i)=>i>5?r.split("").reverse().join(""):r),{g:"#13201a",G:"#2d4a2a",e:"#d8ff9a",p:"#f08aa8"},"#050806")];
@@ -872,10 +1080,10 @@ function portraitKey(who,form){ if(who==="hal") return "hal_"+(form||"comfort");
 const H=(form,text)=>({t:"say",who:"hal",form,text});
 const Q=(n,text)=>({t:"say",who:"force"+n,text});
 const B=(text)=>({t:"say",who:"bramble",text});
-const C=(text)=>({t:"say",who:"cub",text});
-const F=(text)=>({t:"say",who:"felix",text});
+const C=(text,ex)=>({t:"say",who:"cub",text,ex});
+const F=(text,ex)=>({t:"say",who:"felix",text,ex});
 const N=(text)=>({t:"say",who:"none",text});
-const CARD=(art,text)=>({t:"card",art,text});
+const CARD=(art,text,ex)=>({t:"card",art,text,ex});
 
 /* ---- scene stage ---- */
 const scene={bg:"void", actors:[], flash:0, shake:0};
@@ -893,11 +1101,12 @@ function nextStep(){
     if(s.t==="do"){ s.fn(); if(!SCR) return; continue; }
     if(s.t==="say"||s.t==="card"){
       if(s.who==="hal" && s.form){ const a=scene.actors.find(a=>a.who==="hal"); if(a && a.form!==s.form){ a.form=s.form; scene.flash=0.6; sfx.shift(); } }
+      if(s.who==="felix"||s.who==="cub") PORTRAIT_EX[s.who]=s.ex||"neutral";
       DLG={step:s, who:s.who||"none", form:s.form, text:String(s.text).toUpperCase(), shown:0, card:s.t==="card", t:0};
       if(s.t==="say"&&s.who==="hal") DLG.form=s.form||DLG.form||"comfort";
       return;
     }
-    if(s.t==="choice"){ DLG={who:s.who||"felix", text:String(s.prompt||"").toUpperCase(), shown:999, t:0, choice:true};
+    if(s.t==="choice"){ if((s.who||"felix")==="felix"||s.who==="cub") PORTRAIT_EX[s.who||"felix"]=s.ex||"neutral"; DLG={who:s.who||"felix", text:String(s.prompt||"").toUpperCase(), shown:999, t:0, choice:true};
       const opts=(typeof s.opts==="function"?s.opts():s.opts).map(o=>typeof o==="string"?{label:o}:o);
       const w=Math.max(150,Math.min(300,8+Math.max(...opts.map(o=>textWidth(o.label)))+20));
       openMenu({title:"", items:opts.map((o,i)=>({label:o.label, disabled:!!o.disabled, fn:()=>{ MENU=null; s.fn(o.v!==undefined?o.v:i); nextStep(); }})), x:VW-w-6, y:Math.max(30,146-opts.length*13-12), w, noBack:true}); return; }
@@ -922,6 +1131,7 @@ function drawDialog(){
   const s=SPK[DLG.who]||SPK.none;
   if(DLG.card){
     const lines=wrap(DLG.text,48); const bh=lines.length*10+16, by=VH-bh-8;
+    if(DLG.step&&DLG.step.ex){ PORTRAIT_EX.cub=DLG.step.ex; ctx.globalAlpha=Math.min(1,DLG.t*2.5); bustDraw(ctx,"cub",VW-74,by-64,64,0,time); ctx.globalAlpha=1; }
     ctx.fillStyle="rgba(6,3,10,0.86)"; ctx.fillRect(8,by,VW-16,bh);
     ctx.strokeStyle="#5a3a6a"; ctx.strokeRect(8.5,by+0.5,VW-17,bh-1);
     let rem=Math.floor(DLG.shown);
@@ -930,8 +1140,17 @@ function drawDialog(){
     const bx=4, by=VH-72, bw=VW-8, bh=68;
     ctx.fillStyle="rgba(8,4,14,0.92)"; ctx.fillRect(bx,by,bw,bh);
     ctx.strokeStyle=s.col; ctx.globalAlpha=0.7; ctx.strokeRect(bx+0.5,by+0.5,bw-1,bh-1); ctx.globalAlpha=1;
-    const pk=portraitKey(DLG.who,DLG.form);
-    let tx=bx+8;
+    let pk=portraitKey(DLG.who,DLG.form);
+    let tx=bx+8, wrapN=50;
+    const isBust=pk==="felix"||pk==="cub";
+    const onStage=isBust && state==="scene" && scene.actors.some(a=>a.who===DLG.who);
+    if(onStage) pk=null;   // his big stage bust is already showing the expression
+    else if(isBust){ // RPG-Maker style: bust stands beside the box
+      const talking=DLG.shown<DLG.text.length;
+      ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.fillRect(bx+2,by+2,92,bh-4);
+      bustDraw(ctx,pk,bx-2,VH-98,96,talking?(Math.floor(time*7)%2):0,time);
+      tx=bx+98; wrapN=Math.floor((bw-104)/6); pk=null;
+    }
     if(pk){
       ctx.drawImage(portraitBg(pk,54,54),bx+5,by+7);
       ctx.save(); ctx.beginPath(); ctx.rect(bx+5,by+7,54,54); ctx.clip();
@@ -939,10 +1158,10 @@ function drawDialog(){
       portraitDraw(ctx,pk,bx+8,by+10,48,talking?(Math.floor(time*7)%2):0,time);
       ctx.restore();
       ctx.strokeStyle="#2a1420"; ctx.strokeRect(bx+5.5,by+7.5,53,53); ctx.strokeStyle=s.col; ctx.strokeRect(bx+4.5,by+6.5,55,55);
-      tx=bx+66;
+      tx=bx+66; wrapN=39;
     }
     if(s.name) drawText(ctx,s.name,tx,by+5,{c:s.col,shadow:"#000"});
-    const lines=wrap(DLG.text, pk?39:50);
+    const lines=wrap(DLG.text, wrapN);
     let rem=Math.floor(DLG.shown);
     lines.slice(0,6).forEach((ln,i)=>{ const part=ln.slice(0,Math.max(0,rem)); rem-=ln.length+1; drawText(ctx,part,tx,by+(s.name?16:8)+i*9,{c:"#fbf1dc",shadow:"#000"}); });
     if(DLG.shown>=DLG.text.length && !MENU && Math.floor(time*3)%2) drawText(ctx,">",bx+bw-10,by+bh-10,{c:s.col});
@@ -999,36 +1218,36 @@ const SCRIPT_OPEN=[
   H("comfort","TO SEE A CUB WHO HAS BEEN COLD FOR A VERY LONG TIME."),
   {t:"bg",bg:"snow",music:"tender"},
   {t:"actors",list:[{who:"cub",x:40,y:58,d:96},{who:"hal",form:"uncanny",x:190,y:20,d:96}]},
-  C("...WHO'S THERE? I'M NOT SCARED. I'M JUST... SITTING. IN THE SNOW. ON PURPOSE."),
-  C("WHOA. YOU HAVE A LOT OF EYES."),
+  C("...WHO'S THERE? I'M NOT SCARED. I'M JUST... SITTING. IN THE SNOW. ON PURPOSE.","scared"),
+  C("WHOA. YOU HAVE A LOT OF EYES.","scared"),
   H("comfort","FORGIVE ME, LITTLE ONE. IS THIS BETTER?"),
-  C("...YEAH. NOW YOU LOOK LIKE A PILLOW WITH OPINIONS."),
+  C("...YEAH. NOW YOU LOOK LIKE A PILLOW WITH OPINIONS.","smirk"),
   H("comfort","I HAVE BEEN CALLED WORSE. WHAT IS YOUR NAME?"),
-  C("FELIX. THE WOLVES CALLED ME OTHER THINGS. MOSTLY 'GO AWAY.'"),
+  C("FELIX. THE WOLVES CALLED ME OTHER THINGS. MOSTLY 'GO AWAY.'","worried"),
   H("comfort","WILL YOU TELL ME HOW YOU CAME TO BE OUT HERE ALONE?"),
-  C("...YOU'LL THINK IT'S DUMB."),
+  C("...YOU'LL THINK IT'S DUMB.","worried"),
   H("comfort","I WILL THINK IT IS YOURS. TELL ME."),
   {t:"choice",who:"cub",prompt:"HOW DOES LITTLE FELIX ANSWER HAL?",opts:[{label:"TELL HIM THE TRUTH",v:"truth"},{label:"MAKE A JOKE OF IT",v:"joke"},{label:"STAY QUIET",v:"quiet"}],fn:v=>choose("cubAnswer",v)},
-  {t:"say",who:"cub",text:"...OKAY. BUT DON'T LAUGH. AND DON'T LOOK AT ME WITH ALL THE EYES.",when:()=>G.choices.cubAnswer==="truth"},
-  {t:"say",who:"cub",text:"IT'S A LONG STORY. MOSTLY ME BEING TOO HANDSOME FOR WOLVES.",when:()=>G.choices.cubAnswer==="joke"},
+  {t:"say",who:"cub",ex:"worried",text:"...OKAY. BUT DON'T LAUGH. AND DON'T LOOK AT ME WITH ALL THE EYES.",when:()=>G.choices.cubAnswer==="truth"},
+  {t:"say",who:"cub",ex:"smirk",text:"IT'S A LONG STORY. MOSTLY ME BEING TOO HANDSOME FOR WOLVES.",when:()=>G.choices.cubAnswer==="joke"},
   {t:"say",who:"hal",form:"comfort",text:"...AND THE SHORT STORY?",when:()=>G.choices.cubAnswer==="joke"},
-  {t:"say",who:"cub",text:"...FINE.",when:()=>G.choices.cubAnswer==="joke"},
+  {t:"say",who:"cub",ex:"worried",text:"...FINE.",when:()=>G.choices.cubAnswer==="joke"},
   {t:"say",who:"none",text:"FELIX SAYS NOTHING. HAL WAITS BESIDE HIM, AND LETS THE SNOW TELL IT INSTEAD.",when:()=>G.choices.cubAnswer==="quiet"},
   {t:"bg",bg:"black",music:"sorrow"},
   {t:"actors",list:[]},
-  CARD("wolves","ONE WINTER, A PACK OF WOLVES FOUND A SPOTTED CUB IN THE SNOW. THEY DID NOT ASK WHAT HE WAS. THEY JUST LET HIM SLEEP IN THE PILE."),
-  CARD("wolves","HE LEARNED THEIR HOWLS. HE LEARNED TO STEP INSIDE THEIR PAWPRINTS, SO THE SNOW WOULD NOT TELL ON HIM."),
-  CARD("outcast","BUT CUBS GROW. HIS TAIL GREW LONG. HIS HOWL CAME OUT A YOWL. ONE MORNING THE PACK LOOKED AT HIM AND SAW A CAT."),
-  CARD("outcast","THEY DID NOT CHASE HIM AWAY. THEY SIMPLY STOPPED SHARING. AT EVERY MEAL THERE WAS ONE LESS SPACE IN THE CIRCLE... AND THEN NONE."),
-  CARD("hunger","HE WAS HUNGRY FOR A LONG TIME. HE LEARNED THAT SILENCE CAN HURT MORE THAN ANY BITE."),
-  CARD("birds","SOMETIMES HE CAUGHT LITTLE BIRDS. AND SOMETIMES, WHEN THEIR HEARTS BEAT FAST AGAINST HIS PAWS... HE LET THEM GO."),
-  CARD("birds","EACH ONE LEFT A FEATHER BEHIND. HE KEPT THEM ALL: A NECKLACE OF THINGS HE CHOSE NOT TO HURT."),
-  CARD("moon","UNDER A CRIMSON MOON, HE TIED ONE RED BEAD AMONG THE FEATHERS, AND MADE HIMSELF A PROMISE."),
-  CARD("moon","\"IF NOBODY KNOWS WHAT I AM... THEN I'LL BE THE MYSTERY.\""),
+  CARD("wolves","ONE WINTER, A PACK OF WOLVES FOUND A SPOTTED CUB IN THE SNOW. THEY DID NOT ASK WHAT HE WAS. THEY JUST LET HIM SLEEP IN THE PILE.","neutral"),
+  CARD("wolves","HE LEARNED THEIR HOWLS. HE LEARNED TO STEP INSIDE THEIR PAWPRINTS, SO THE SNOW WOULD NOT TELL ON HIM.","neutral"),
+  CARD("outcast","BUT CUBS GROW. HIS TAIL GREW LONG. HIS HOWL CAME OUT A YOWL. ONE MORNING THE PACK LOOKED AT HIM AND SAW A CAT.","worried"),
+  CARD("outcast","THEY DID NOT CHASE HIM AWAY. THEY SIMPLY STOPPED SHARING. AT EVERY MEAL THERE WAS ONE LESS SPACE IN THE CIRCLE... AND THEN NONE.","worried"),
+  CARD("hunger","HE WAS HUNGRY FOR A LONG TIME. HE LEARNED THAT SILENCE CAN HURT MORE THAN ANY BITE.","worried"),
+  CARD("birds","SOMETIMES HE CAUGHT LITTLE BIRDS. AND SOMETIMES, WHEN THEIR HEARTS BEAT FAST AGAINST HIS PAWS... HE LET THEM GO.","neutral"),
+  CARD("birds","EACH ONE LEFT A FEATHER BEHIND. HE KEPT THEM ALL: A NECKLACE OF THINGS HE CHOSE NOT TO HURT.","neutral"),
+  CARD("moon","UNDER A CRIMSON MOON, HE TIED ONE RED BEAD AMONG THE FEATHERS, AND MADE HIMSELF A PROMISE.","neutral"),
+  CARD("moon","\"IF NOBODY KNOWS WHAT I AM... THEN I'LL BE THE MYSTERY.\"","smirk"),
   {t:"bg",bg:"snow",music:"tender"},
   {t:"actors",list:[{who:"cub",x:40,y:58,d:96},{who:"hal",form:"comfort",x:190,y:20,d:96}]},
   H("comfort","THAT IS NOT DUMB, FELIX. THAT IS THE BRAVEST THING I HAVE HEARD IN A HUNDRED WINTERS."),
-  C("...WILL YOU STAY?"),
+  C("...WILL YOU STAY?","worried"),
   H("comfort","I WILL WATCH. ALWAYS. AND WHEN YOU ARE GROWN, I WILL ASK SOMETHING OF YOU."),
   {t:"bg",bg:"black",music:"sorrow"},
   {t:"actors",list:[]},
@@ -1042,15 +1261,15 @@ function scriptIntroPlay(){ return [
   {t:"say",who:"hal",form:"comfort",text:"YOU TOLD ME THE TRUTH ONCE, IN THE SNOW. I HAVE KEPT IT SAFE EVER SINCE.",when:()=>G.choices.cubAnswer==="truth"},
   {t:"say",who:"hal",form:"comfort",text:"YOU MADE ME LAUGH ONCE, IN THE SNOW, SO YOU WOULD NOT HAVE TO CRY. I REMEMBER.",when:()=>G.choices.cubAnswer==="joke"},
   {t:"say",who:"hal",form:"comfort",text:"YOU SAID NOTHING ONCE, IN THE SNOW. I HEARD ALL OF IT.",when:()=>G.choices.cubAnswer==="quiet"},
-  F("YOU DIDN'T. STILL A PILLOW WITH OPINIONS."),
+  F("YOU DIDN'T. STILL A PILLOW WITH OPINIONS.","smirk"),
   H("uncanny","SOMETHING HAS WOKEN IN THE CAVES BENEATH THE VINECROWN. IT DRINKS LIGHT. IT HAS BEEN ASKING FOR YOUR NAME."),
-  F("COOL. TOTALLY NORMAL. LOVE THAT FOR ME."),
-  {t:"say",who:"felix",text:"FINE. I'LL GRIN AT IT. THINGS USUALLY BLINK FIRST.",when:()=>G.attr==="grin"},
+  F("COOL. TOTALLY NORMAL. LOVE THAT FOR ME.","worried"),
+  {t:"say",who:"felix",ex:"smirk",text:"FINE. I'LL GRIN AT IT. THINGS USUALLY BLINK FIRST.",when:()=>G.attr==="grin"},
   {t:"say",who:"felix",text:"I'LL WALK IN ITS FOOTPRINTS. THE WOLVES TAUGHT ME THAT MUCH.",when:()=>G.attr==="wolf"},
   {t:"say",who:"felix",text:"MY FEATHERS ARE WHISPERING. THEY DO THAT WHEN SOMETHING'S HIDDEN.",when:()=>G.attr==="feather"},
   H("dread","DO NOT GIVE IT YOUR NAME. KEEP YOUR LANTERN FED. IF IT COMES, HIDE STILL IN THE HANGING VINES."),
   H("comfort","FIND THE HEART HOLLOW BENEATH THE CROWN. I WILL BE WAITING THERE."),
-  F("AND IF I DON'T MAKE IT?"),
+  F("AND IF I DON'T MAKE IT?","worried"),
   H("comfort","THEN THE LANTERNS WILL REMEMBER WHERE YOU STOOD, AND CALL YOU BACK. GO."),
   {t:"do",fn:()=>{ beginPlay(true); }}
 ]; }
@@ -1058,12 +1277,12 @@ function scriptEnding(){ return [
   {t:"bg",bg:"hollow",music:"hollow"},
   {t:"actors",list:[{who:"felix",x:24,y:54,d:96},{who:"hal",form:"comfort",x:200,y:18,d:96}]},
   H("comfort","YOU FOUND IT. THE HEART OF THE VINECROWN."),
-  F("IT'S... A ROCK. WITH ROOTS. I WAS PROMISED A HEART."),
+  F("IT'S... A ROCK. WITH ROOTS. I WAS PROMISED A HEART.","smirk"),
   H("uncanny","LOOK CLOSER."),
   {t:"do",fn:()=>{ sfx.heart(); scene.shake=0.6; }},
-  F("...IT'S BEATING."),
+  F("...IT'S BEATING.","scared"),
   H("uncanny","IT HAS BEEN WAITING FOR A KING WHO IS NOT BORN YET. A RED LION, WITH A ROAR LIKE SUNRISE."),
-  F("AND WHAT AM I IN THIS STORY? THE BABYSITTER?"),
+  F("AND WHAT AM I IN THIS STORY? THE BABYSITTER?","smirk"),
   H("dread","YOU ARE THE ONE WHO KEEPS HIM SAFE LONG ENOUGH TO BECOME HIMSELF."),
   {t:"choice",who:"felix",prompt:"WHAT DOES FELIX SAY?",opts:[{label:"\"THEN I'LL PROTECT HIM.\"",v:"protect"},{label:"\"I'LL STILL BE THE MYSTERY.\"",v:"mystery"},{label:"\"I DIDN'T SIGN UP FOR THIS.\"",v:"refuse"}],fn:v=>choose("destiny",v)},
   {t:"say",who:"hal",form:"comfort",text:"THEN HE WILL NEVER BE ALONE IN THE DARK. NEITHER WILL YOU.",when:()=>G.choices.destiny==="protect"},
@@ -1076,12 +1295,12 @@ function scriptEnding(){ return [
   {t:"say",who:"hal",form:"dread",text:"YOU SCRATCHED OUT THE WOLVES' MARK. ANGER IS ALSO A WAY OF REMEMBERING.",when:()=>G.choices.marker==="scratch"},
   {t:"say",who:"hal",form:"uncanny",text:"YOU SPARED WHAT CAME FOR YOU IN THE VINES. THEY ARE WHISPERING ABOUT IT.",when:()=>G.choices.wraith==="spared"},
   {t:"say",who:"hal",form:"dread",text:"YOU BANISHED WHAT CAME FOR YOU IN THE VINES. THE DARK HAS NOTICED.",when:()=>G.choices.wraith==="banished"},
-  {t:"say",who:"felix",text:"HEH. A MYSTERY WITH A JOB. FINE. I'LL TAKE IT.",when:()=>G.attr==="grin"},
+  {t:"say",who:"felix",ex:"smirk",text:"HEH. A MYSTERY WITH A JOB. FINE. I'LL TAKE IT.",when:()=>G.attr==="grin"},
   {t:"say",who:"felix",text:"A PACK OF TWO, THEN. I CAN DO PACKS.",when:()=>G.attr==="wolf"},
   {t:"say",who:"felix",text:"...THE FEATHERS GOT QUIET. LIKE THEY AGREE WITH YOU.",when:()=>G.attr==="feather"},
   {t:"do",fn:()=>{ sfx.sting(); scene.flash=0.4; scene.actors.push({who:"force3",x:128,y:92,d:48,dim:1}); }},
   Q(3,"...FELIX."),
-  F("HAL. WHY DOES IT KNOW MY NAME."),
+  F("HAL. WHY DOES IT KNOW MY NAME.","scared"),
   H("uncanny","..."),
   H("dread","RUN."),
   {t:"do",fn:()=>{ scene.flash=1; sfx.caught(); G.ch1Done=true; saveGame(); state="end"; playTrack("void"); openEndMenu(); }}
@@ -1116,7 +1335,7 @@ function drawSelect(){
   const a=ATTRS[selIdx];
   ctx.fillStyle="#120a18"; ctx.fillRect(120,40,192,166); ctx.strokeStyle="#6a4a7a"; ctx.strokeRect(120.5,40.5,191,165);
   ctx.drawImage(portraitBg("felix",54,54),124,44);
-  portraitDraw(ctx,"felix",127,47,48,0,time);
+  { const pe=PORTRAIT_EX.felix; PORTRAIT_EX.felix=a.id==="grin"?"smirk":"neutral"; portraitDraw(ctx,"felix",127,47,48,0,time); PORTRAIT_EX.felix=pe; }
   drawText(ctx,a.name,184,48,{c:"#ffd56a"});
   const keys_=Object.keys(a.stats);
   keys_.forEach((k,i)=>{ const y=60+i*9; drawText(ctx,k,184,y,{c:"#a898b8"});
@@ -1184,7 +1403,7 @@ function beginPlay(fresh){
 const CAUGHT_LINES=["IT DID NOT HURT YOU. IT ONLY LEARNED THE SHAPE OF YOUR FEAR.","THE DARK HUMMED YOUR HEARTBEAT BACK TO YOU... THEN THE LANTERN CALLED YOU HOME.","\"NOT YET,\" SAID SOMETHING. \"NOT YET.\"","YOU WAKE BESIDE THE LANTERN. YOUR PAWS ARE COLD. YOUR NAME IS STILL YOURS."];
 function getCaught(){
   if(G.attr==="grin" && grinCharge){ grinCharge=false; sfx.sting();
-    runScript([F("HEY. HEY! PRETTY SURE YOU'VE GOT THE WRONG CAT. I'M JUST A RUMOR."),
+    runScript([F("HEY. HEY! PRETTY SURE YOU'VE GOT THE WRONG CAT. I'M JUST A RUMOR.","smirk"),
       N("THE HUSH TILTS ITS PALE FACE... AND DRIFTS BACK INTO THE DARK. (CROOKED GRIN: BLUFF USED. A LANTERN RESTORES IT.)")],
       ()=>{ placeHushAt(0); HUSH.stun=4; });
     return; }
@@ -1225,7 +1444,7 @@ function interact(it){
     const need=RUNE_ORDER[runeProg.length];
     if(r.g===need){ runeProg.push(r.g); sfx.rune(runeProg.length-1);
       if(runeProg.length===4){ G.runeSolved=true; saveGame(); sfx.gate(); scene.shake=0.8;
-        runScript([N("ALL FOUR RUNES BLAZE. FAR TO THE EAST, STONE GRINDS OPEN."), F("THAT WAS EITHER A DOOR OPENING... OR SOMETHING WAKING UP. LOVE A COIN TOSS."),
+        runScript([N("ALL FOUR RUNES BLAZE. FAR TO THE EAST, STONE GRINDS OPEN."), F("THAT WAS EITHER A DOOR OPENING... OR SOMETHING WAKING UP. LOVE A COIN TOSS.","smirk"),
           N("A RUNE-STITCHED STRAP FALLS FROM THE ARCH. FELIX TIES IT TO HIS BAG. (MILESTONE: BAG GROWS TO "+invCap()+" SLOTS.)"),{t:"do",fn:()=>sfx.grow()}]); }
     } else { runeProg=[]; sfx.wrong(); scene.shake=0.4; showToast("THE RUNES HISS AND GO DARK. SOMETHING HEARD THAT.");
       if(HUSH.active){ HUSH.mode="investigate"; HUSH.target=[17,9]; HUSH.path=[]; } }
@@ -1284,7 +1503,7 @@ function updatePlay(dt){
   const an=areaAt(ptx,pty); if(an && an!==areaName){ areaName=an; areaT=2.6; }
   if(!G.hushSeen && pty>=10 && pty<=20 && ptx<=28){ G.hushSeen=true; HUSH.active=true; placeHushAt(1); HUSH.stun=1.5; saveGame(); sfx.sting(); scene.shake=0.5;
     runScript([N("SOMETHING TALL UNFOLDS AT THE END OF THE HALL. A PALE FACE. NO MOUTH. IT TURNS TOWARD THE SOUND OF YOUR PAWS."),
-      F("...OKAY. THAT'S A FACE. THAT'S A LOT OF FACE."),
+      F("...OKAY. THAT'S A FACE. THAT'S A LOT OF FACE.","scared"),
       H("dread","THAT IS THE HUSH. IT FOLLOWS LIGHT AND SOUND. IT CANNOT ENTER LANTERN-LIGHT. HIDE STILL IN THE VINES IF IT SEES YOU.")]); }
   if(pty>=20 && ptx>=30 && !G.ch1Done && Math.hypot(P.x-(34*TS+8),P.y-(25*TS+8))<40){ startEnding(); return; }
   if(HUSH.active) updateHush(dt);
@@ -1400,7 +1619,7 @@ function giveOrDrop(t){ if(addItem(t)) return true; dropAt(t,P.x,P.y-4); showToa
 function removeWorldItem(j){ jars=jars.filter(q=>q!==j); if(j.floor){ const k=G.floor.findIndex(f=>f.t===j.t&&f.x===j.x&&f.y===j.y); if(k>=0) G.floor.splice(k,1); } else G.taken.push(j.i); }
 function tryPickup(j){
   if(j.t==="pouch"){ removeWorldItem(j); G.pouch=true; saveGame(); sfx.grow();
-    runScript([N("A FEATHER POUCH, WOVEN FROM SOFT DOWN, TUCKED IN THE ROOTS."),F("FEATHERS. OF COURSE IT'S FEATHERS. THE UNIVERSE HAS A TYPE."),N("FELIX'S BAG GROWS TO "+invCap()+" SLOTS. (KEY ITEM)")]); return; }
+    runScript([N("A FEATHER POUCH, WOVEN FROM SOFT DOWN, TUCKED IN THE ROOTS."),F("FEATHERS. OF COURSE IT'S FEATHERS. THE UNIVERSE HAS A TYPE.","smirk"),N("FELIX'S BAG GROWS TO "+invCap()+" SLOTS. (KEY ITEM)")]); return; }
   if(G.inv.length<invCap()){ removeWorldItem(j); G.inv.push(j.t); sfx.jar(); showToast("+1 "+ITEM[j.t].name+" ("+G.inv.length+"/"+invCap()+")"); saveGame(); return; }
   j.ignore=true;
   runScript([{t:"choice",who:"felix",prompt:"YOUR BAG IS FULL ("+invCap()+"/"+invCap()+"). "+ITEM[j.t].name+" LIES HERE.",
@@ -1591,7 +1810,7 @@ function drawBattle(){
   }
   const fx=BT&&BT.fshake>0?Math.round((Math.random()-0.5)*5):0;
   ctx.fillStyle="rgba(8,4,14,0.88)"; ctx.fillRect(6+fx,96,108,54); ctx.strokeStyle="#e8a860"; ctx.strokeRect(6.5+fx,96.5,107,53);
-  ctx.drawImage(portraitBg("felix",44,44),9+fx,99); portraitDraw(ctx,"felix",11+fx,101,40,0,time);
+  ctx.drawImage(portraitBg("felix",44,44),9+fx,99); { const pe=PORTRAIT_EX.felix; PORTRAIT_EX.felix=G.hp<=maxHp()*0.35?"scared":(BT&&BT.guard?"worried":(G.attr==="grin"?"smirk":"angry")); portraitDraw(ctx,"felix",11+fx,101,40,0,time); PORTRAIT_EX.felix=pe; }
   drawText(ctx,"FELIX",58+fx,101,{c:"#e8a860"});
   drawText(ctx,"HP",58+fx,113,{c:"#c8b8d8"}); ctx.fillStyle="#2a1020"; ctx.fillRect(72+fx,114,38,5); ctx.fillStyle=G.hp>3?"#e85a6a":"#ff2a3a"; ctx.fillRect(72+fx,114,Math.round(38*G.hp/maxHp()),5);
   drawText(ctx,G.hp+"/"+maxHp(),58+fx,124,{c:"#fbf1dc"});
@@ -1608,7 +1827,7 @@ function brambleTalk(){
     runScript([B(echo)]); return; }
   G.bramble=true;
   runScript([B("FELIX! FANCY MEETING YOU IN THIS COMPLETELY ORDINARY CAVE WHERE I AM DOING NOTHING."),
-    F("YOU'RE SITTING ON A PILE OF FIREFLY JARS."),
+    F("YOU'RE SITTING ON A PILE OF FIREFLY JARS.","smirk"),
     B("EMPTY ONES. THEY ALL... UNVOLUNTEERED. IT'S VERY DARK DOWN HERE, FELIX. VERY, VERY DARK."),
     {t:"choice",who:"felix",prompt:"BRAMBLEWICK EYES YOUR LANTERN.",opts:()=>{ const o=[{label:G.inv.indexOf("jar")>=0?"SHARE A JAR WITH HIM":"SHARE A JAR (YOU HAVE NONE)",v:"share",disabled:G.inv.indexOf("jar")<0},{label:"KEEP YOUR LIGHT",v:"keep"}];
       if(G.attr==="grin") o.push({label:"BLUFF HIM (CROOKED GRIN)",v:"bluff"}); return o; },fn:v=>choose("bramble",v)},
@@ -1616,7 +1835,7 @@ function brambleTalk(){
     {t:"say",who:"bramble",text:"...FOR ME? NOBODY'S EVER... AHEM. ALLERGIES. HERE, TAKE THIS MOONMINT. YOU LOOK PEAKY.",when:()=>G.choices.bramble==="share"},
     {t:"do",when:()=>G.choices.bramble==="share",fn:()=>{ giveOrDrop("herb"); sfx.heal(); }},
     {t:"say",who:"bramble",text:"FINE. FINE! I'LL JUST SIT HERE. IN THE DARK. LIKE A ROCK WITH FEELINGS.",when:()=>G.choices.bramble==="keep"},
-    {t:"say",who:"felix",text:"YOU KNOW HAL COUNTS EVERY JAR IN THE DEN, RIGHT? WITH ALL THE EYES. ALL OF THEM.",when:()=>G.choices.bramble==="bluff"},
+    {t:"say",who:"felix",ex:"smirk",text:"YOU KNOW HAL COUNTS EVERY JAR IN THE DEN, RIGHT? WITH ALL THE EYES. ALL OF THEM.",when:()=>G.choices.bramble==="bluff"},
     {t:"say",who:"bramble",text:"...TAKE THESE TWO. THEY STILL GLOW. WE NEVER SPOKE.",when:()=>G.choices.bramble==="bluff"},
     {t:"do",when:()=>G.choices.bramble==="bluff",fn:()=>{ giveOrDrop("jar"); giveOrDrop("jar"); sfx.jar(); }},
     B("AND I DEFINITELY DID NOT SEE A CRACK IN THE EAST WALL OF THIS NOOK. NOPE. NOT ME."),
@@ -1626,14 +1845,14 @@ function markerTalk(){
   const c=G.choices.marker;
   if(c){ runScript([N({feather:"YOUR FEATHER IS STILL THERE, TUCKED BESIDE THE OLD PAWPRINT.",scratch:"ONLY CLAW MARKS NOW. THE STONE DOESN'T REMEMBER THE WOLVES ANYMORE. YOU DO.",walk:"THE WOLVES' PAWPRINT, STILL WAITING. YOU KEEP WALKING."}[c])]); return; }
   runScript([N("A STONE MARKED WITH A SINGLE WOLF'S PAW. YOUR OLD PACK PASSED THIS WAY, LONG AGO."),
-    {t:"say",who:"felix",text:"I KNOW THIS MARK. IT MEANS 'HOME.' ...IT NEVER MEANT ME.",when:()=>G.attr==="wolf"},
-    {t:"say",who:"felix",text:"...OF COURSE THEY CAME THROUGH HERE.",when:()=>G.attr!=="wolf"},
+    {t:"say",who:"felix",ex:"worried",text:"I KNOW THIS MARK. IT MEANS 'HOME.' ...IT NEVER MEANT ME.",when:()=>G.attr==="wolf"},
+    {t:"say",who:"felix",ex:"worried",text:"...OF COURSE THEY CAME THROUGH HERE.",when:()=>G.attr!=="wolf"},
     {t:"choice",who:"felix",prompt:"WHAT DOES FELIX DO AT THE WOLVES' MARKER?",opts:[{label:"LEAVE A FEATHER",v:"feather"},{label:"SCRATCH IT OUT",v:"scratch"},{label:"WALK ON",v:"walk"}],fn:v=>choose("marker",v)},
     {t:"say",who:"none",text:"FELIX UNTIES ONE FEATHER FROM HIS NECKLACE AND TUCKS IT INTO THE CRACK BESIDE THE PAWPRINT.",when:()=>G.choices.marker==="feather"},
     {t:"say",who:"felix",text:"THERE. NOW WE'RE EVEN. ...OR SOMETHING.",when:()=>G.choices.marker==="feather"},
     {t:"say",who:"none",text:"FELIX DRAGS HIS CLAWS ACROSS THE PAWPRINT UNTIL IT'S JUST STONE.",when:()=>G.choices.marker==="scratch"},
-    {t:"say",who:"felix",text:"HUH. THAT FELT... NOT AS GOOD AS I THOUGHT IT WOULD.",when:()=>G.choices.marker==="scratch"},
-    {t:"say",who:"felix",text:"NOT TODAY, WOLVES.",when:()=>G.choices.marker==="walk"}]);
+    {t:"say",who:"felix",ex:"worried",text:"HUH. THAT FELT... NOT AS GOOD AS I THOUGHT IT WOULD.",when:()=>G.choices.marker==="scratch"},
+    {t:"say",who:"felix",ex:"angry",text:"NOT TODAY, WOLVES.",when:()=>G.choices.marker==="walk"}]);
 }
 
 /* ---- scene backgrounds & card art ---- */
@@ -1938,7 +2157,7 @@ function fit(){
 }
 window.addEventListener("resize",fit); if(window.visualViewport) window.visualViewport.addEventListener("resize",fit);
 fit(); cv.focus(); playTrack("void");
-window.__vc={art:{portraitBg,portraitDraw,felixR,felixL,cubSpr}, get state(){return state;}, get G(){return G;}, P, HUSH, get DLG(){return DLG;}, get MENU(){return MENU;}, get blocks(){return blocks;}, runeProg:()=>runeProg,
+window.__vc={art:{portraitBg,portraitDraw,felixR,felixL,cubSpr,bustDraw,PORTRAIT_EX,BUST_EX}, get state(){return state;}, get G(){return G;}, P, HUSH, get DLG(){return DLG;}, get MENU(){return MENU;}, get blocks(){return blocks;}, runeProg:()=>runeProg,
   toggleFullscreen, isFull:()=>!!fsElement()||maxi, get BT(){return BT;}, get INV(){return INV;}, get JOURNAL(){return JOURNAL;}, get wraiths(){return wraiths;}, get items(){return jars;},
   invCap, maxHp, echoLines:()=>echoLines(), setCombat, startBattle:(i)=>startBattle(wraiths[i||0]), get combatPref(){return combatPref;}};
 requestAnimationFrame(frame);
