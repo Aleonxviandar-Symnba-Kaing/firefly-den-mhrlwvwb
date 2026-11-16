@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#07040a">
+<title>Leon's Vinecrown Hub</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body {
+    margin: 0; width: 100%; height: 100%; height: 100dvh;
+    background: #07040a; overflow: hidden; touch-action: none;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+    user-select: none; -webkit-user-select: none;
+  }
+  #app {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #stage { position: relative; display: inline-block; line-height: 0; }
+  #cv {
+    display: block; image-rendering: pixelated; image-rendering: crisp-edges;
+    outline: none; background: #07040a;
+    box-shadow: 0 0 0 2px #000, 0 0 40px #3a145044;
+    max-width: 100%; max-height: 100%;
+  }
+  #mute {
+    position: absolute; top: 6px; right: 6px;
+    width: 46px; height: 22px; z-index: 5; padding: 0;
+    font: 700 9px inherit; letter-spacing: 0.5px; color: #ffd56a; background: #2a1436cc;
+    border: 2px solid #c9a24a; box-shadow: 0 2px 0 #5a3a12; cursor: pointer;
+    line-height: 18px; text-align: center;
+  }
+  #mute.off { color: #6a5070; border-color: #5a4060; }
+  #mute:active { transform: translateY(2px); box-shadow: none; }
+  #pad {
+    display: none; position: absolute; inset: 0; pointer-events: none; z-index: 4;
+  }
+  body.touch #pad { display: block; }
+  #dpad {
+    position: absolute; left: calc(10px + env(safe-area-inset-left));
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: 150px; height: 150px; pointer-events: none;
+  }
+  #dpad button {
+    position: absolute; width: 50px; height: 50px; pointer-events: auto;
+    color: #ffe9b0; background: #1a1028cc; border: 2px solid #c9a24a;
+    box-shadow: 0 2px 0 #5a3a12; font: 700 16px inherit; cursor: pointer;
+    touch-action: none;
+  }
+  #dpad button:active, #dpad button.held { transform: translateY(2px); box-shadow: none; background: #3a2040ee; }
+  #btnU { left: 50px; top: 0; }
+  #btnD { left: 50px; top: 100px; }
+  #btnL { left: 0; top: 50px; }
+  #btnR { left: 100px; top: 50px; }
+  #btnEnter {
+    position: absolute; right: calc(16px + env(safe-area-inset-right));
+    bottom: calc(28px + env(safe-area-inset-bottom));
+    width: 76px; height: 76px; border-radius: 50%; pointer-events: auto;
+    color: #fff6c8; background: #c0392bcc; border: 2px solid #e8b04a;
+    box-shadow: 0 3px 0 #5a1a12; font: 700 12px inherit; letter-spacing: 1px;
+    cursor: pointer; touch-action: none;
+  }
+  #btnEnter:active, #btnEnter.held { transform: translateY(3px); box-shadow: none; }
+  #btnEnter.ready { box-shadow: 0 3px 0 #5a1a12, 0 0 16px #7fd3ff88; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+  <canvas id="cv" width="320" height="224" tabindex="0" aria-label="Leon's Vinecrown Hub"></canvas>
+  <button id="mute" type="button" aria-label="Toggle mute">BGM</button>
+  <div id="pad">
+    <div id="dpad">
+      <button id="btnU" type="button" aria-label="Up">▲</button>
+      <button id="btnD" type="button" aria-label="Down">▼</button>
+      <button id="btnL" type="button" aria-label="Left">◀</button>
+      <button id="btnR" type="button" aria-label="Right">▶</button>
+    </div>
+    <button id="btnEnter" type="button" aria-label="Enter cave">ENTER</button>
+  </div>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+const VW=320, VH=224, TS=16, TW=20, TH=14;
+const WORLD_W=TW*TS, WORLD_H=TH*TS;
+const cv=document.getElementById("cv");
+const ctx=cv.getContext("2d");
+ctx.imageSmoothingEnabled=false;
+ctx.mozImageSmoothingEnabled=false;
+ctx.webkitImageSmoothingEnabled=false;
+
+function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function mk(w,h){
+  const c=document.createElement("canvas");
+  c.width=w; c.height=h;
+  const g=c.getContext("2d");
+  g.imageSmoothingEnabled=false;
+  return [c,g];
+}
+function makeSprite(rows, pal, outline){
+  const h=rows.length, w=Math.max(...rows.map(r=>r.length));
+  const pad=outline?1:0;
+  const [c,g]=mk(w+pad*2, h+pad*2);
+  const filled=(i,j)=>{
+    if(j<0||j>=h) return false;
+    const ch=rows[j][i];
+    return !!(ch && ch!=="." && pal[ch]);
+  };
+  if(outline){
+    g.fillStyle=outline;
+    for(let j=-1;j<=h;j++) for(let i=-1;i<=w;i++){
+      if(filled(i,j)) continue;
+      if(filled(i-1,j)||filled(i+1,j)||filled(i,j-1)||filled(i,j+1)) g.fillRect(i+pad,j+pad,1,1);
+    }
+  }
+  for(let j=0;j<h;j++) for(let i=0;i<rows[j].length;i++){
+    const ch=rows[j][i];
+    if(!filled(i,j)) continue;
+    g.fillStyle=pal[ch];
+    g.fillRect(i+pad,j+pad,1,1);
+  }
+  return c;
+}
+function flipH(src){
+  const [c,g]=mk(src.width, src.height);
+  g.translate(src.width,0);
+  g.scale(-1,1);
+  g.imageSmoothingEnabled=false;
+  g.drawImage(src,0,0);
+  return c;
+}
+function makeGlow(r, rgb, a0){
+  const s=r*2+1; const [c,g]=mk(s,s); const id=g.createImageData(s,s);
+  for(let j=0;j<s;j++) for(let i=0;i<s;i++){
+    const d=Math.hypot(i-r,j-r)/(r+0.5);
+    if(d>1) continue;
+    let a=Math.ceil((1-d)*4)/4; a=a*a*a0;
+    const k=(j*s+i)*4;
+    id.data[k]=rgb[0]; id.data[k+1]=rgb[1]; id.data[k+2]=rgb[2]; id.data[k+3]=Math.round(a*255);
+  }
+  g.putImageData(id,0,0); return c;
+}
+
+const BAYER=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+let _s=0xC0FFEE;
+function srand(){ _s^=_s<<13; _s^=_s>>>17; _s^=_s<<5; return ((_s>>>0)%10000)/10000; }
+
+/* ---- 5x7 pixel font (rows packed as 7 hex values 0-1F) ---- */
+const FONT={};
+(function(){
+  const pack={
+    "0":"0E13151911110E","1":"040C040404040E","2":"0E11010204081F",
+    "3":"0E11010601110E","4":"02060A121F0202","5":"1F101E0101110E",
+    "6":"0608101E11110E","7":"1F010204080808","8":"0E11110E11110E",
+    "9":"0E11110F01020C","A":"0E11111F111111","B":"1E11111E11111E",
+    "C":"0E11101010110E","D":"1E11111111111E","E":"1F10101E10101F",
+    "F":"1F10101E101010","G":"0E11101711110E","H":"1111111F111111",
+    "I":"0E04040404040E","J":"0702020202120C","K":"11121418141211",
+    "L":"1010101010101F","M":"111B1515111111","N":"11191513111111",
+    "O":"0E11111111110E","P":"1E11111E101010","Q":"0E11111115120D",
+    "R":"1E11111E141211","S":"0F10100E01011E","T":"1F040404040404",
+    "U":"1111111111110E","V":"11111111110A04","W":"1111111515150A",
+    "X":"11110A040A1111","Y":"11110A04040404","Z":"1F01020408101F",
+    " ":"00000000000000","'":"04040800000000",":":"00040400040400",
+    ".":"00000000000004",",":"00000000000408","-":"0000001F000000",
+    "/":"01020408101000","!":"04040404040004","?":"0E110102040004",
+    "(":"02040808080402",")":"08040202020408","&":"0C12120C15110D"
+  };
+  for(const k in pack){
+    const h=pack[k], rows=[];
+    for(let i=0;i<14;i+=2) rows.push(parseInt(h.substr(i,2),16));
+    FONT[k]=rows;
+  }
+})();
+
+function textWidth(str,s){ return String(str).length*6*s; }
+function drawText(g,str,x,y,opt){
+  opt=opt||{};
+  const s=opt.s||1, col=opt.c||"#fbf1dc", align=opt.align||"left", shadow=opt.shadow;
+  str=String(str).toUpperCase();
+  const w=str.length*6*s;
+  let ox=x;
+  if(align==="center") ox=Math.round(x-w/2);
+  if(align==="right") ox=Math.round(x-w);
+  const oy=Math.round(y);
+  for(let n=0;n<str.length;n++){
+    const rows=FONT[str[n]];
+    const px=ox+n*6*s;
+    if(!rows) continue;
+    if(shadow){
+      g.fillStyle=shadow;
+      for(let j=0;j<7;j++) for(let i=0;i<5;i++) if(rows[j]&(1<<(4-i))) g.fillRect(px+(i*s)+s, oy+(j*s)+s, s, s);
+    }
+    g.fillStyle=col;
+    for(let j=0;j<7;j++) for(let i=0;i<5;i++) if(rows[j]&(1<<(4-i))) g.fillRect(px+i*s, oy+j*s, s, s);
+  }
+  return w;
+}
+
+/* ---- palettes & sprites ---- */
+const OUT="#140812";
+const LEON_PAL={
+  R:"#e0302c", r:"#901828", G:"#f4c040", g:"#c08424", L:"#ffe08a",
+  k:"#7a4a14", E:"#ff5a1a", N:"#4a2010", y:"#fff27a", H:"#fff6a0",
+  V:"#3f8a3a", v:"#245a28"
+};
+const LEON_BLINK=Object.assign({},LEON_PAL,{E:"#c08424",y:"#c08424"});
+const SI_PAL={
+  R:"#d84a40", r:"#9a2828", G:"#f0c868", g:"#d0a040", L:"#ffe8b0",
+  k:"#8a5a20", E:"#ff5a1a", N:"#5a2810", y:"#fff27a",
+  S:"#e8d0a0", s:"#c8a878"
+};
+const SI_BLINK=Object.assign({},SI_PAL,{E:"#d0a040",y:"#d0a040"});
+const OWL_PAL={B:"#8a6a4a",b:"#5a3d2b",W:"#f4efd0",E:"#222222",N:"#f0a020",F:"#c08950"};
+
+const LDN=[
+  ".......rRRr.......",
+  ".....rRRRRRRr.....",
+  "....rRRRRRRRRr....",
+  "....rRyRRRyRRr....",
+  "...rGGGGGGGGGRr...",
+  "...rGyEGGEGyGR....",
+  "...RRGGGNNGGGR....",
+  "...rRRGGGGGGRr....",
+  "....VrRRRRRrV.....",
+  "....VVGHHHGVV.....",
+  "....v.GLLLG.v.....",
+  "....v.Gg..Gg.v....",
+  "......Gg..Gg......",
+  "......kk..kk......"
+];
+const LUP=[
+  ".......rRRr.......",
+  ".....rRRRRRRr.....",
+  "....rRRRRRRRRRr...",
+  "...rRRRRRRRRRRRr..",
+  "...RRRRRRRRRRRR...",
+  "...rRRRRRRRRRRr...",
+  "....rRRGGGRRRr....",
+  "....VrGGGGGgV.....",
+  "....VVGHHHGVV.....",
+  "....v.GLLLG.v.....",
+  "....v.Gg..Gg.v....",
+  "......Gg..Gg......",
+  "......kk..kk......"
+];
+const LRT=[
+  "..........rRr.....",
+  "........rBRRRRr...".replace(/B/g,"r"),
+  ".......rRyRRRRRr..",
+  ".......RRGGGGRRr..",
+  "......rRGEGGEGRr..",
+  "......RRRGGGGGRR..",
+  "......rRRGGNNGGRr.",
+  "...rR..RRGgkkGRR..",
+  "...VV..rRRGGGRr...",
+  "...v.vvvRRRRRr....",
+  "...v.vGGGGGHGGg...",
+  "....vGGGGGGGGGGg..",
+  "....vGLLLLLLLLGg..",
+  ".....Gg.Gg.Gg.Gg..",
+  ".....kk.kk.kk.kk.."
+];
+const LEGS={
+  idle:null,
+  w1:["......Gg...Gg.....","......kk...kk....."],
+  w2:[".......Gg.Gg......",".......kk.kk......"]
+};
+// down/up share the last 2 rows as feet; replace for walk
+function withFeet(body, feet){
+  return body.slice(0,-2).concat(feet);
+}
+const leonSpr={};
+(function(){
+  const feetDown={
+    idle: LDN.slice(-2),
+    w1: [".....Gg....Gg.....",".....kk....kk....."],
+    w2: [".......GgGg.......",".......kkkk......."]
+  };
+  const feetUp={
+    idle: LUP.slice(-2),
+    w1: [".....Gg....Gg.....",".....kk....kk....."],
+    w2: [".......GgGg.......",".......kkkk......."]
+  };
+  const bodyRT=LRT.slice(0,-2);
+  const feetRT={
+    idle: LRT.slice(-2),
+    w1: ["....Gg..Gg.Gg..Gg.","....kk..kk.kk..kk."],
+    w2: ["......GgGg..GgGg..","......kkkk..kkkk.."]
+  };
+  const dirs={down:[LDN.slice(0,-2),feetDown], up:[LUP.slice(0,-2),feetUp], right:[bodyRT,feetRT]};
+  for(const d in dirs){
+    leonSpr[d]={};
+    const body=dirs[d][0], feet=dirs[d][1];
+    for(const f in feet){
+      const rows=body.concat(feet[f]);
+      leonSpr[d][f]=makeSprite(rows,LEON_PAL,OUT);
+      leonSpr[d][f+"B"]=makeSprite(rows,LEON_BLINK,OUT);
+    }
+    if(d==="right"){
+      leonSpr.left={};
+      for(const f in leonSpr.right) leonSpr.left[f]=flipH(leonSpr.right[f]);
+    }
+  }
+})();
+
+const SI_DN=[
+  "....rRRr....",
+  "...rRRRRr...",
+  "..rGyEEyRr..",
+  "..rGGGNGRr..",
+  "...sGGGGs...",
+  "...Sg..gS...",
+  "....k..k...."
+];
+const SI_UP=[
+  "....rRRr....",
+  "...rRRRRr...",
+  "..rRRRRRRr..",
+  "..rRRGGRRr..",
+  "...sGGGGs...",
+  "...Sg..gS...",
+  "....k..k...."
+];
+const SI_RT=[
+  ".....rRr....",
+  "....rRyRRr..",
+  "...rGEGGRr..",
+  "...rGGNGR...",
+  "..ssGGGGGs..",
+  "...Sg.g.S...",
+  "....k..k...."
+];
+const siSpr={};
+(function(){
+  function variant(rows, feet){ return rows.slice(0,-1).concat(feet); }
+  const sets={down:SI_DN, up:SI_UP, right:SI_RT};
+  for(const d in sets){
+    const base=sets[d];
+    siSpr[d]={
+      idle: makeSprite(base,SI_PAL,OUT),
+      idleB: makeSprite(base,SI_BLINK,OUT),
+      w1: makeSprite(variant(base, d==="right"?"...k...k....":"....k...k..."), SI_PAL, OUT),
+      w2: makeSprite(variant(base, d==="right"?".....kk.....":".....kk....."), SI_PAL, OUT)
+    };
+  }
+  siSpr.left={};
+  for(const f in siSpr.right) siSpr.left[f]=flipH(siSpr.right[f]);
+})();
+
+const OWL=makeSprite([
+  "..bbBbb..",
+  ".bBBBBBb.",
+  "bBWWWWWBb",
+  "bBWEbEWBb",
+  ".bWWNWWb.",
+  "..bBFBb..",
+  "...FFF...",
+  "..F.F.F.."
+],OWL_PAL,OUT);
+
+const PEONY=makeSprite([
+  ".pPp.",
+  "pPPPp",
+  "PpOpp",
+  ".pPp.",
+  "..s..",
+  "..s.."
+],{P:"#f29bb7",p:"#f7c6d6",O:"#ffd6e2",s:"#3f7a3e"},OUT);
+
+const CANDLE=makeSprite([
+  "..f..",
+  ".fFf.",
+  "..W..",
+  "..W..",
+  "..W.."
+],{f:"#ffb347",F:"#ffe9a0",W:"#efe3c2"},OUT);
+
+const GLOW_FLY=makeGlow(6,[180,255,90],0.75);
+const GLOW_GOLD=makeGlow(10,[255,200,60],0.7);
+const GLOW_BLUE=makeGlow(14,[70,170,255],0.55);
+const GLOW_WARM=makeGlow(8,[255,180,80],0.6);
+const GLOW_MOON=makeGlow(22,[220,210,255],0.4);
+
+/* ---- world ---- */
+const MAP=[
+"WWWWWWWWWWWWWWWWWWWW",
+"WWWWWWWWWWWWWWWWWWWW",
+"WW...WWW...WWW...WWW",
+"W..................W",
+"W..................W",
+"W..................W",
+"W..................W",
+"W...ppp............W",
+"W...ppp............W",
+"W..................W",
+"W..................W",
+"WW...WWWWWWWWW...WWW",
+"WWWWWWWWWWWWWWWWWWWW",
+"WWWWWWWWWWWWWWWWWWWW"
+];
+
+const CAVES=[
+  {id:"firefly", name:"LEON'S FIREFLY CONTEST", sub:"VS BRAMBLEWICK", href:"firefly.html", x:56, y:48, color:"#b8ff64", glow:[180,255,90], label:"FIREFLY"},
+  {id:"star", name:"STAR TEAM CYPHER ENGINE", sub:"BOOT THE TERMINAL", href:"star-team.html", x:152, y:48, color:"#7fd3ff", glow:[70,200,255], label:"STAR TEAM"},
+  {id:"descent", name:"LEON: THE DESCENT", sub:"DOWN THROUGH THE RINGS", href:"descent.html", x:248, y:48, color:"#c89cff", glow:[180,140,255], label:"DESCENT"},
+  {id:"colosseum", name:"LEON: THE COLOSSEUM", sub:"WAVE AFTER WAVE", href:"colosseum.html", x:248, y:176, color:"#ffb347", glow:[255,180,70], label:"COLOSSEUM"},
+  {id:"under", name:"THE UNDER: A LION'S DESCENT", sub:"WHERE THE DARK KEEPS SCORE", href:"under.html", x:56, y:176, color:"#ff6a4a", glow:[255,90,70], label:"THE UNDER"}
+];
+
+function tileAt(px,py){
+  const tx=Math.floor(px/TS), ty=Math.floor(py/TS);
+  if(tx<0||ty<0||tx>=TW||ty>=TH) return "W";
+  return MAP[ty][tx];
+}
+function isSolid(px,py){
+  const ch=tileAt(px,py);
+  if(ch==="W") return true;
+  // keep paws in front of cave mouths so sprites don't climb the wall
+  if(py<54) return true;
+  if(py>170) return true;
+  return false;
+}
+function blocked(x,y,hw,hh){
+  return isSolid(x-hw,y-hh)||isSolid(x+hw,y-hh)||isSolid(x-hw,y)||isSolid(x+hw,y);
+}
+
+const PEONY_POS=[[40,96],[88,120],[200,100],[280,96],[120,150],[200,160],[280,150],[40,150]];
+const CANDLE_POS=[[96,72],[208,72],[160,128],[40,112],[280,112],[120,176],[200,176]];
+const OWL_POS={x:196,y:118};
+
+function pset(g,x,y,c){ g.fillStyle=c; g.fillRect(x|0,y|0,1,1); }
+
+function buildWorld(){
+  const [c,g]=mk(WORLD_W, WORLD_H);
+  // sky strip along the very top (cliff rim)
+  const skyPal=[[12,9,36],[19,13,52],[28,18,70],[40,24,86],[54,32,102]];
+  const id=g.createImageData(WORLD_W, WORLD_H);
+  for(let y=0;y<WORLD_H;y++){
+    for(let x=0;x<WORLD_W;x++){
+      const k=(y*WORLD_W+x)*4;
+      const th=(BAYER[(y&3)*4+(x&3)]+0.5)/16;
+      const ch=MAP[Math.min(TH-1,y>>4)][Math.min(TW-1,x>>4)];
+      let r,gv,b;
+      if(y<22){
+        const t=clamp(y/22,0,1), f=t*(skyPal.length-1), i=Math.min(skyPal.length-2,f|0), fr=f-i;
+        const p=fr>th?skyPal[i+1]:skyPal[i];
+        r=p[0]; gv=p[1]; b=p[2];
+      } else if(ch==="p"){
+        const wave=((Math.sin(x*0.18)+Math.sin(y*0.27+x*0.05))+2)/4;
+        r=14+wave*20; gv=40+wave*28; b=52+wave*30;
+        if(th>0.85){ r+=10; gv+=14; b+=18; }
+      } else if(ch==="c"||ch==="k"){
+        r=42; gv=40; b=36;
+        if(((x+y)&3)===0){ r=52; gv=48; b=40; }
+      } else if(ch==="W"){
+        const n=(Math.sin(x*0.31)+Math.cos(y*0.27))*0.5;
+        r=48+n*8; gv=48+n*6; b=56+n*8;
+        if(((x*3+y*5)|0)%7===0){ r=58; gv=56; b=64; }
+        // moss speckles
+        if(((x*7+y*3)|0)%11===0){ r=46; gv=62; b=48; }
+      } else {
+        // grass
+        const n=(Math.sin(x*0.19)+Math.cos(y*0.17+x*0.05))*0.5;
+        r=26+n*6; gv=54+n*10; b=34+n*6;
+        if(th>0.8){ r+=6; gv+=8; b+=4; }
+        // darker near walls later via overlay
+      }
+      id.data[k]=r; id.data[k+1]=gv; id.data[k+2]=b; id.data[k+3]=255;
+    }
+  }
+  g.putImageData(id,0,0);
+
+  // stars in sky strip
+  g.save();
+  for(let i=0;i<80;i++){
+    const x=(srand()*WORLD_W)|0, y=(srand()*18)|0;
+    g.globalAlpha=0.45+srand()*0.55;
+    pset(g,x,y,["#ffffff","#d8dcff","#ffe8b8","#b8b0ff"][(srand()*4)|0]);
+  }
+  g.globalAlpha=1;
+  // moon, upper right, a soft circle — not behind a landmark cliff
+  const mx=WORLD_W-48, my=14;
+  g.drawImage(GLOW_MOON, mx-(GLOW_MOON.width>>1), my-(GLOW_MOON.height>>1));
+  g.fillStyle="#f4efd0";
+  g.beginPath(); g.arc(mx,my,9,0,Math.PI*2); g.fill();
+  g.fillStyle="rgba(42,37,87,0.35)";
+  g.beginPath(); g.arc(mx+4,my-2,8,0,Math.PI*2); g.fill();
+  g.restore();
+
+  // dirt paths from the vinecrown to each cave
+  function paintPath(x0,y0,x1,y1){
+    const dist=Math.hypot(x1-x0,y1-y0);
+    const steps=dist|0;
+    for(let i=0;i<=steps;i++){
+      const t=i/steps;
+      const x=x0+(x1-x0)*t, y=y0+(y1-y0)*t;
+      const w=3+(srand()*2)|0;
+      for(let oy=-w;oy<=w;oy++) for(let ox=-w;ox<=w;ox++){
+        if(ox*ox+oy*oy>w*w) continue;
+        const px=(x+ox)|0, py=(y+oy)|0;
+        if(px<0||py<0||px>=WORLD_W||py>=WORLD_H) continue;
+        const ch=tileAt(px,py);
+        if(ch==="W"||ch==="k"||ch==="p") continue;
+        const dirt=["#3a3220","#4a4030","#524830","#2e2818"][(srand()*4)|0];
+        pset(g,px,py,dirt);
+      }
+    }
+  }
+  const hubX=10*TS+8, hubY=7*TS+8;
+  CAVES.forEach(cvv=>paintPath(hubX,hubY,cvv.x,cvv.y));
+
+  // rune ring tesserae
+  g.fillStyle="#5a5244";
+  for(let ty=0;ty<TH;ty++) for(let tx=0;tx<TW;tx++){
+    if(MAP[ty][tx]==="c"){
+      g.fillStyle=((tx+ty)&1)?"#5a5244":"#4a463c";
+      g.fillRect(tx*TS, ty*TS, TS, TS);
+      // inner highlight
+      g.fillStyle="#7a7260";
+      g.fillRect(tx*TS+2, ty*TS+2, 3, 1);
+    }
+  }
+
+  // vinecrown stone (center, low and rounded — a crown of vines, not a tall mesa)
+  (function(){
+    const sx=10*TS, sy=7*TS;
+    g.fillStyle="#2e2c28";
+    g.beginPath(); g.ellipse(sx+8, sy+10, 20, 12, 0, 0, Math.PI*2); g.fill();
+    g.fillStyle="#4a4840";
+    g.beginPath(); g.ellipse(sx+8, sy+8, 18, 10, 0, 0, Math.PI*2); g.fill();
+    g.fillStyle="#5a564c";
+    g.beginPath(); g.ellipse(sx+8, sy+6, 14, 7, 0, 0, Math.PI*2); g.fill();
+    // vines spiraling into a small crown
+    g.strokeStyle="#2d6a32"; g.lineWidth=2; g.lineJoin="round";
+    g.beginPath();
+    g.moveTo(sx-2, sy+16);
+    g.quadraticCurveTo(sx-8, sy+4, sx+4, sy-2);
+    g.quadraticCurveTo(sx+16, sy-8, sx+18, sy+2);
+    g.stroke();
+    g.strokeStyle="#3f8a3a";
+    g.beginPath();
+    g.moveTo(sx+22, sy+16);
+    g.quadraticCurveTo(sx+26, sy+2, sx+12, sy-4);
+    g.quadraticCurveTo(sx+2, sy-10, sx+8, sy+2);
+    g.stroke();
+    // little leaf tufts
+    g.fillStyle="#5fb35a";
+    g.fillRect(sx+2, sy-8, 3, 3);
+    g.fillRect(sx+14, sy-10, 3, 3);
+    g.fillRect(sx+20, sy-2, 3, 3);
+    // rune on the crown stone
+    g.fillStyle="#7fd3ff";
+    g.fillRect(sx+6, sy+4, 2, 8);
+    g.fillRect(sx+4, sy+4, 6, 2);
+    g.fillRect(sx+4, sy+8, 6, 2);
+  })();
+
+  // cliff / boulder walls
+  function rockBlock(tx,ty){
+    const x=tx*TS, y=ty*TS;
+    const cols=["#3a3a48","#2e2e3c","#4a4a58","#323244"];
+    g.fillStyle=cols[(tx*3+ty)&3];
+    g.fillRect(x,y,TS,TS);
+    g.fillStyle="#5a5a68";
+    g.fillRect(x+1,y+1,4,2);
+    g.fillStyle="#262632";
+    g.fillRect(x+2,y+TS-3,TS-4,2);
+    if(((tx+ty*2)&3)===0){
+      g.fillStyle="#3a4a40";
+      g.fillRect(x+6,y+4,5,3);
+    }
+    // rim highlight on northern edge
+    if(ty>0 && MAP[ty-1][tx]!=="W"){
+      g.fillStyle="#6a6a78";
+      g.fillRect(x,y,TS,2);
+    }
+  }
+  for(let ty=0;ty<TH;ty++) for(let tx=0;tx<TW;tx++){
+    if(MAP[ty][tx]==="W"){
+      // don't pave over the sky pixels on the very top strip except as a cliff lip
+      if(ty===0 && (tx<2||tx>TW-3||true)){
+        // draw a cliff lip only on the lower half of row 0
+        if(ty===0){
+          const x=tx*TS, y=10;
+          g.fillStyle="#2a2a36";
+          g.fillRect(x, 14, TS, 2);
+          g.fillStyle="#4a4a58";
+          g.fillRect(x, 16, TS, 0); // no-op kept for clarity
+          // actual lip
+          g.fillStyle="#3a3a48";
+          g.fillRect(x, 12, TS, 4);
+          g.fillStyle="#5a5a68";
+          g.fillRect(x, 12, TS, 1);
+          continue;
+        }
+      }
+      rockBlock(tx,ty);
+    }
+  }
+  // row 1 is solid wall — already drawn. Add a darker face under the lip.
+  for(let tx=0;tx<TW;tx++){
+    g.fillStyle="rgba(10,8,18,0.25)";
+    g.fillRect(tx*TS, TS, TS, 4);
+  }
+
+  // cave mouths
+  function drawArch(cx, cy, facing, col){
+    // facing: -1 means opening faces south (top caves), 1 faces north (bottom caves)
+    const w=22, h=26;
+    const x=cx-w, y= facing<0 ? cy-8 : cy-h+8;
+    // inner dark
+    g.fillStyle="#07040a";
+    g.beginPath();
+    if(facing<0){
+      g.moveTo(x+2,y+h);
+      g.quadraticCurveTo(x+2,y+2,x+w,y+2);
+      g.quadraticCurveTo(x+w*2-2,y+2,x+w*2-2,y+h);
+      g.closePath();
+    } else {
+      g.moveTo(x+2,y);
+      g.quadraticCurveTo(x+2,y+h-2,x+w,y+h-2);
+      g.quadraticCurveTo(x+w*2-2,y+h-2,x+w*2-2,y);
+      g.closePath();
+    }
+    g.fill();
+    // colored depth
+    g.fillStyle=col;
+    g.globalAlpha=0.35;
+    g.beginPath();
+    if(facing<0){
+      g.arc(cx, y+8, 7, 0, Math.PI*2);
+    } else {
+      g.arc(cx, y+h-8, 7, 0, Math.PI*2);
+    }
+    g.fill();
+    g.globalAlpha=1;
+    // stone frame
+    g.strokeStyle="#2a2a36";
+    g.lineWidth=3;
+    g.beginPath();
+    if(facing<0){
+      g.moveTo(x+2,y+h);
+      g.quadraticCurveTo(x+2,y+2,x+w,y+2);
+      g.quadraticCurveTo(x+w*2-2,y+2,x+w*2-2,y+h);
+    } else {
+      g.moveTo(x+2,y);
+      g.quadraticCurveTo(x+2,y+h-2,x+w,y+h-2);
+      g.quadraticCurveTo(x+w*2-2,y+h-2,x+w*2-2,y);
+    }
+    g.stroke();
+    g.strokeStyle="#6a6a78";
+    g.lineWidth=1;
+    g.stroke();
+  }
+  CAVES.forEach(cvv=>{
+    const facing = cvv.y < WORLD_H/2 ? -1 : 1;
+    drawArch(cvv.x, cvv.y, facing, cvv.color);
+  });
+
+  // pond highlights
+  g.strokeStyle="rgba(127,211,255,0.25)";
+  g.lineWidth=1;
+  g.strokeRect(3*TS+2, 7*TS+2, 3*TS-4, 2*TS-4);
+  g.fillStyle="rgba(127,211,255,0.35)";
+  g.fillRect(3*TS+18, 7*TS+10, 2, 6);
+  g.fillRect(3*TS+16, 7*TS+12, 6, 2);
+
+  // vines on some walls
+  g.strokeStyle="#2d5a32";
+  g.lineWidth=2;
+  [[24,64,36,160],[296,64,284,160],[20,170,50,200]].forEach((v,i)=>{
+    g.beginPath();
+    g.moveTo(v[0],v[1]);
+    g.quadraticCurveTo(v[0]+(i%2?16:-16), (v[1]+v[3])/2, v[2], v[3]);
+    g.stroke();
+  });
+
+  (function(){
+    const cx=10*TS+8, cy=7*TS+8;
+    for(let a=0;a<16;a++){
+      const ang=a*Math.PI/8, rx=cx+Math.cos(ang)*36, ry=cy+Math.sin(ang)*22;
+      g.fillStyle=a%2?"#5a5244":"#4a463c";
+      g.fillRect((rx-3)|0,(ry-2)|0,6,4);
+      g.fillStyle="#7a7260";
+      g.fillRect((rx-2)|0,(ry-2)|0,2,1);
+    }
+  })();
+
+  CAVES.forEach(cvv=>{
+    const ly = cvv.y < WORLD_H/2 ? cvv.y+16 : cvv.y-18;
+    drawText(g, cvv.label, cvv.x, ly, {s:1, c:cvv.color, align:"center", shadow:"#0a0618"});
+  });
+
+  // grass tufts baked in
+  for(let i=0;i<90;i++){
+    const x=16+(srand()*(WORLD_W-32))|0;
+    const y=40+(srand()*(WORLD_H-60))|0;
+    if(isSolid(x,y) || tileAt(x,y)==="p") continue;
+    g.fillStyle=srand()<0.5?"#2f6a38":"#3a7a40";
+    g.fillRect(x,y,1,3);
+    g.fillRect(x+2,y+1,1,3);
+    g.fillRect(x-1,y+1,1,2);
+  }
+
+  // peonies (static)
+  PEONY_POS.forEach(p=>g.drawImage(PEONY, p[0]-3, p[1]-8));
+
+  return c;
+}
+
+const worldBg=buildWorld();
+
+/* ---- audio (starts only after a gesture) ---- */
+let actx=null, master=null, musicOn=false, musicT0=0, musicLast=-1;
+let muted=false;
+try{ muted=localStorage.getItem("leonVinecrownMute")==="1"; }catch(e){}
+
+function ensureAudio(){
+  if(!actx){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) return null;
+    actx=new AC();
+    master=actx.createGain();
+    master.gain.value=muted?0:0.09;
+    master.connect(actx.destination);
+  }
+  if(actx.state==="suspended") void actx.resume();
+  return actx;
+}
+function setMuted(m){
+  muted=!!m;
+  try{ localStorage.setItem("leonVinecrownMute", muted?"1":"0"); }catch(e){}
+  if(master){
+    const t=actx?actx.currentTime:0;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setTargetAtTime(muted?0:0.09, t, 0.04);
+  }
+  const btn=document.getElementById("mute");
+  btn.textContent=muted?"MUTE":"BGM";
+  btn.classList.toggle("off", muted);
+  btn.setAttribute("aria-label", muted?"Unmute music":"Mute music");
+}
+setMuted(muted);
+
+function tone(type, freq, t, dur, vol, slide){
+  if(!actx||muted) return;
+  const o=actx.createOscillator();
+  const g=actx.createGain();
+  const f=actx.createBiquadFilter();
+  o.type=type;
+  o.frequency.setValueAtTime(freq, t);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(20,slide), t+dur);
+  f.type="lowpass"; f.frequency.value=1400;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  o.connect(f); f.connect(g); g.connect(master);
+  o.start(t); o.stop(t+dur+0.02);
+}
+function midi(n){ return 440*Math.pow(2,(n-69)/12); }
+
+// Original cozy night loop, "Vinecrown Dusk" — not based on any copyrighted song.
+const LEAD=[
+  [0,64,1],[1,67,1],[2,69,0.5],[2.5,71,1.5],
+  [4,69,1],[5,67,1],[6,64,2],
+  [8,62,1],[9,64,1],[10,67,1],[11,69,1],
+  [12,67,1],[13,64,1],[14,62,1],[15,59,1],
+  [16,64,1],[17,67,0.5],[17.5,69,0.5],[18,71,1],[19,74,1],
+  [20,71,1],[21,69,1],[22,67,2],
+  [24,69,1],[25,67,1],[26,64,1],[27,62,1],
+  [28,64,3]
+];
+const BASS=[
+  [0,40,2],[2,47,2],[4,40,2],[6,43,2],
+  [8,38,2],[10,45,2],[12,40,2],[14,38,2],
+  [16,40,2],[18,47,2],[20,43,2],[22,40,2],
+  [24,38,2],[26,45,2],[28,40,4]
+];
+const BEAT=60/92; // 92 bpm
+const LOOP=32*BEAT;
+
+function startMusic(){
+  if(!ensureAudio()) return;
+  if(musicOn) return;
+  musicOn=true;
+  musicT0=actx.currentTime+0.08;
+  musicLast=-1;
+}
+function tickMusic(){
+  if(!musicOn||!actx||muted) return;
+  const now=actx.currentTime;
+  const look=now+0.25;
+  const rel=look-musicT0;
+  if(rel<0) return;
+  const loopN=Math.floor(rel/LOOP);
+  if(loopN===musicLast) return;
+  // schedule this loop and the next if needed
+  const start=musicT0+loopN*LOOP;
+  if(start+LOOP < now-0.05){ musicLast=loopN; return; }
+  if(loopN!==musicLast){
+    const playN=(arr,type,vol)=>arr.forEach(n=>{
+      const st=start+n[0]*BEAT;
+      if(st+0.02>=now) tone(type, midi(n[1]), st, n[2]*BEAT*0.92, vol);
+    });
+    playN(LEAD,"triangle",0.11);
+    playN(BASS,"square",0.045);
+    // soft pulse on downbeats
+    for(let b=0;b<32;b+=4){
+      tone("sine", 196, start+b*BEAT, 0.12, 0.025);
+    }
+    musicLast=loopN;
+  }
+}
+function sfxChime(){
+  if(!ensureAudio()||muted) return;
+  const t=actx.currentTime;
+  tone("sine", 784, t, 0.18, 0.08);
+  tone("sine", 1175, t+0.05, 0.22, 0.06);
+}
+function sfxWhoosh(){
+  if(!ensureAudio()||muted) return;
+  const t=actx.currentTime;
+  tone("triangle", 440, t, 0.35, 0.07, 180);
+  tone("sine", 220, t, 0.4, 0.05, 90);
+}
+
+/* ---- state & input ---- */
+const keys={};
+const pad={u:false,d:false,l:false,r:false,enter:false};
+let enterLatch=false, enterWas=false, enterBuf=false;
+let state="title"; // title | play | fade
+let fade=0, fadeTo=null;
+let time=0, lastTs=0;
+let nearCave=null, wasNear=null, hintT=6;
+
+const leon={x:160, y:124, vx:0, vy:0, dir:"down", walkT:0, blinkT:2, blink:0, moving:false};
+const si={x:178, y:140, dir:"down", walkT:0, blinkT:3, blink:0, trail:[]};
+const cam={x:0, y:0};
+const flies=[];
+for(let i=0;i<18;i++){
+  flies.push({
+    x:40+srand()*(WORLD_W-80),
+    y:50+srand()*(WORLD_H-80),
+    p:srand()*Math.PI*2,
+    sp:0.6+srand()*1.2,
+    a:0.5+srand()*0.5
+  });
+}
+
+function resetActors(){
+  leon.x=160; leon.y=124; leon.vx=0; leon.vy=0; leon.dir="down"; leon.walkT=0;
+  si.x=178; si.y=140; si.dir="down"; si.walkT=0; si.trail=[];
+  cam.x=0; cam.y=0;
+}
+
+function heldDir(){
+  let dx=0, dy=0;
+  if(keys.arrowleft||keys.a||keys.h||pad.l) dx-=1;
+  if(keys.arrowright||keys.d||keys.l||pad.r) dx+=1;
+  if(keys.arrowup||keys.w||keys.k||pad.u) dy-=1;
+  if(keys.arrowdown||keys.s||keys.j||pad.d) dy+=1;
+  return [dx,dy];
+}
+function enterPressed(){
+  const now=!!(keys.enter||keys[" "]||pad.enter);
+  const edge=(now && !enterWas) || enterBuf;
+  enterBuf=false;
+  enterWas=now;
+  return edge;
+}
+
+function tryMove(ent, dx, dy, hw, hh){
+  if(dx){
+    const nx=ent.x+dx;
+    if(!blocked(nx, ent.y, hw, hh)) ent.x=nx;
+    else {
+      const step=Math.sign(dx);
+      while(step && Math.abs(nx-ent.x)>=1){
+        if(!blocked(ent.x+step, ent.y, hw, hh)) ent.x+=step;
+        else break;
+      }
+    }
+  }
+  if(dy){
+    const ny=ent.y+dy;
+    if(!blocked(ent.x, ny, hw, hh)) ent.y=ny;
+    else {
+      const step=Math.sign(dy);
+      while(step && Math.abs(ny-ent.y)>=1){
+        if(!blocked(ent.x, ent.y+step, hw, hh)) ent.y+=step;
+        else break;
+      }
+    }
+  }
+  ent.x=clamp(ent.x, 8, WORLD_W-8);
+  ent.y=clamp(ent.y, 20, WORLD_H-8);
+}
+
+function closestCave(x,y){
+  let best=null, bestD=26;
+  for(let i=0;i<CAVES.length;i++){
+    const d=Math.hypot(x-CAVES[i].x, y-CAVES[i].y);
+    if(d<bestD){ bestD=d; best=CAVES[i]; }
+  }
+  return best;
+}
+
+function beginPlay(){
+  if(state!=="title") return;
+  state="play";
+  hintT=6;
+  ensureAudio();
+  startMusic();
+}
+function enterCave(cave){
+  if(!cave||state==="fade") return;
+  state="fade";
+  fade=0;
+  fadeTo=cave.href;
+  sfxWhoosh();
+}
+
+function update(dt){
+  time+=dt;
+  tickMusic();
+
+  // fireflies
+  for(let i=0;i<flies.length;i++){
+    const f=flies[i];
+    f.p+=dt*f.sp;
+    f.x+=Math.cos(f.p)*8*dt;
+    f.y+=Math.sin(f.p*0.7+i)*6*dt;
+    f.x=clamp(f.x, 16, WORLD_W-16);
+    f.y=clamp(f.y, 32, WORLD_H-16);
+  }
+
+  leon.blinkT-=dt; if(leon.blinkT<=0){ leon.blink=0.14; leon.blinkT=2+Math.random()*3; }
+  leon.blink=Math.max(0, leon.blink-dt);
+  si.blinkT-=dt; if(si.blinkT<=0){ si.blink=0.14; si.blinkT=2.5+Math.random()*3; }
+  si.blink=Math.max(0, si.blink-dt);
+
+  if(state==="title"){
+    if(enterPressed()) beginPlay();
+    const [dx,dy]=heldDir();
+    if(dx||dy) beginPlay();
+    // cam gently breathes over the clearing
+    cam.x=lerp(cam.x, 0, 0.08);
+    cam.y=lerp(cam.y, 0, 0.08);
+    return;
+  }
+
+  if(state==="fade"){
+    fade=Math.min(1, fade+dt*1.6);
+    if(fade>=1 && fadeTo){
+      window.location.href=fadeTo;
+      fadeTo=null;
+    }
+  }
+
+  if(state==="play" || state==="fade"){
+    const [dx,dy]=heldDir();
+    const speed=68;
+    let mx=0, my=0;
+    if(dx||dy){
+      const len=Math.hypot(dx,dy);
+      mx=(dx/len)*speed*dt;
+      my=(dy/len)*speed*dt;
+      if(Math.abs(dx)>Math.abs(dy)) leon.dir=dx<0?"left":"right";
+      else leon.dir=dy<0?"up":"down";
+      leon.moving=true;
+      leon.walkT+=dt*8;
+    } else {
+      leon.moving=false;
+      leon.walkT=0;
+    }
+    if(state==="play") tryMove(leon, mx, my, 5, 4);
+
+    // Little Si follows a short trail behind Leon
+    si.trail.push({x:leon.x, y:leon.y, dir:leon.dir});
+    if(si.trail.length>16) si.trail.shift();
+    const target=si.trail[0]||{x:leon.x, y:leon.y+14, dir:leon.dir};
+    const sdx=target.x-si.x, sdy=target.y-si.y;
+    const sd=Math.hypot(sdx,sdy);
+    if(sd>2){
+      const sp=Math.min(sd, 70*dt);
+      si.x+=sdx/sd*sp;
+      si.y+=sdy/sd*sp;
+      if(Math.abs(sdx)>Math.abs(sdy)) si.dir=sdx<0?"left":"right";
+      else si.dir=sdy<0?"up":"down";
+      si.walkT+=dt*9;
+    } else {
+      si.walkT=0;
+      si.dir=target.dir;
+    }
+
+    cam.x=lerp(cam.x, clamp(leon.x-VW/2, 0, Math.max(0, WORLD_W-VW)), 0.12);
+    cam.y=lerp(cam.y, clamp(leon.y-VH/2, 0, Math.max(0, WORLD_H-VH)), 0.12);
+  }
+
+  cam.x=clamp(cam.x, 0, WORLD_W-VW);
+  cam.y=clamp(cam.y, 0, WORLD_H-VH);
+
+  const next=state==="play"?closestCave(leon.x, leon.y):nearCave;
+  if(next && !wasNear) sfxChime();
+  wasNear=!!next;
+  nearCave=next;
+  document.getElementById("btnEnter").classList.toggle("ready", !!nearCave && state==="play");
+
+  if(state==="play" && nearCave && enterPressed()) enterCave(nearCave);
+  if(state==="play") hintT=Math.max(0, hintT-dt);
+}
+
+function walkFrame(t, moving){
+  if(!moving) return "idle";
+  const i=(t|0)%4;
+  return i===1?"w1":i===3?"w2":"idle";
+}
+
+function glowAt(img, x, y, a){
+  ctx.globalAlpha=clamp(a,0,1);
+  ctx.drawImage(img, Math.round(x)-(img.width>>1), Math.round(y)-(img.height>>1));
+  ctx.globalAlpha=1;
+}
+
+function drawSprite(spr, x, y, facingLeft){
+  // feet sit at (x,y)
+  const dx=Math.round(x-spr.width/2);
+  const dy=Math.round(y-spr.height+1);
+  ctx.drawImage(spr, dx, dy);
+}
+
+function drawWorld(){
+  const cx=Math.round(cam.x), cy=Math.round(cam.y);
+  ctx.drawImage(worldBg, -cx, -cy);
+
+  // cave glows (pulse)
+  for(let i=0;i<CAVES.length;i++){
+    const c=CAVES[i];
+    const pulse=0.45+Math.sin(time*2+i)*0.2;
+    glowAt(GLOW_GOLD, c.x-cx, c.y-cy-(c.y<WORLD_H/2?10:-6), pulse*0.35);
+    ctx.globalAlpha=pulse;
+    ctx.fillStyle=c.color;
+    const gy=c.y-(c.y<WORLD_H/2?12:-8);
+    ctx.fillRect((c.x-cx)|0-1, (gy-cy)|0, 3, 3);
+    ctx.globalAlpha=1;
+  }
+
+  // vinecrown rune pulse + candle flames (dynamic)
+  glowAt(GLOW_BLUE, 10*TS+8-cx, 7*TS+8-cy, 0.45+Math.sin(time*2)*0.2);
+
+  // y-sorted actors
+  const actors=[];
+  CANDLE_POS.forEach(p=>{
+    actors.push({y:p[1], draw(){
+      const fx=p[0]-cx, fy=p[1]-cy;
+      const flick=0.75+Math.sin(time*10+p[0])*0.15+Math.sin(time*17+p[1])*0.1;
+      glowAt(GLOW_WARM, fx, fy-8, flick);
+      ctx.drawImage(CANDLE, Math.round(fx-2), Math.round(fy-10));
+    }});
+  });
+  actors.push({y:OWL_POS.y, draw(){
+    ctx.drawImage(OWL, Math.round(OWL_POS.x-cx-4), Math.round(OWL_POS.y-cy-12));
+  }});
+  // Little Si
+  actors.push({y:si.y, draw(){
+    const fr=walkFrame(si.walkT, si.walkT>0);
+    const key=(si.blink>0?"idleB":fr);
+    const spr=(siSpr[si.dir]&&siSpr[si.dir][key])||siSpr[si.dir].idle;
+    const bob=si.walkT>0&&((si.walkT|0)%2===1)?-1:0;
+    drawSprite(spr, si.x-cx, si.y-cy+bob);
+  }});
+  // Leon
+  actors.push({y:leon.y, draw(){
+    const fr=walkFrame(leon.walkT, leon.moving);
+    const key=fr+(leon.blink>0?"B":"");
+    const set=leonSpr[leon.dir];
+    const spr=(set&&set[key])||(set&&set.idle)||leonSpr.down.idle;
+    const bob=leon.moving&&((leon.walkT|0)%2===1)?-1:0;
+    // mane warmth
+    glowAt(GLOW_GOLD, leon.x-cx, leon.y-cy-12, 0.18);
+    drawSprite(spr, leon.x-cx, leon.y-cy+bob);
+  }});
+  actors.sort((a,b)=>a.y-b.y);
+  for(let i=0;i<actors.length;i++) actors[i].draw();
+
+  // fireflies on top
+  for(let i=0;i<flies.length;i++){
+    const f=flies[i];
+    const a=0.4+Math.sin(time*4+f.p)*0.35;
+    glowAt(GLOW_FLY, f.x-cx, f.y-cy, a*f.a);
+    ctx.globalAlpha=clamp(0.6+a,0,1);
+    ctx.fillStyle="#e8ff9a";
+    ctx.fillRect((f.x-cx)|0, (f.y-cy)|0, 1, 1);
+    ctx.globalAlpha=1;
+  }
+}
+
+function drawTitle(){
+  const grd=ctx.createLinearGradient(0,0,0,52);
+  grd.addColorStop(0,"rgba(7,4,10,0.55)");
+  grd.addColorStop(1,"rgba(7,4,10,0)");
+  ctx.fillStyle=grd;
+  ctx.fillRect(0,0,VW,52);
+  ctx.fillStyle="rgba(7,4,10,0.45)";
+  ctx.fillRect(0,VH-32,VW,32);
+
+  const pulse=0.7+Math.sin(time*2.2)*0.3;
+  drawText(ctx, "LEON'S", VW/2, 8, {s:2, c:"#ffd56a", align:"center", shadow:"#4a1020"});
+  drawText(ctx, "VINECROWN HUB", VW/2, 28, {s:2, c:"#ffe9b0", align:"center", shadow:"#4a1020"});
+  drawText(ctx, "A ROCKY OUTCROP UNDER THE VINES", VW/2, 48, {s:1, c:"#7fd3ff", align:"center", shadow:"#0a0618"});
+
+  ctx.globalAlpha=pulse;
+  drawText(ctx, "PRESS ENTER OR TAP TO BEGIN", VW/2, VH-30, {s:1, c:"#fff6c8", align:"center", shadow:"#0a0618"});
+  ctx.globalAlpha=1;
+  drawText(ctx, "KEPT BY HAL FOR SIMBA", VW/2, VH-16, {s:1, c:"#8a7a60", align:"center"});
+}
+
+function drawHUD(){
+  if(state==="title") return;
+  const topSide = leon.y < WORLD_H/2;
+  const hudY = topSide ? VH-36 : 8;
+  if(nearCave){
+    const c=nearCave;
+    const bw=Math.min(VW-16, textWidth(c.name,1)+16);
+    const bx=(VW-bw)/2, by=hudY;
+    ctx.fillStyle="rgba(10,6,16,0.86)";
+    ctx.fillRect(bx-4, by-4, bw+8, 32);
+    ctx.strokeStyle=c.color;
+    ctx.lineWidth=1;
+    ctx.strokeRect(bx-4.5, by-4.5, bw+8, 32);
+    drawText(ctx, c.name, VW/2, by, {s:1, c:c.color, align:"center", shadow:"#0a0618"});
+    drawText(ctx, "ENTER / TAP ENTER TO OPEN", VW/2, by+14, {s:1, c:"#fff6c8", align:"center"});
+  } else if(hintT>0){
+    ctx.globalAlpha=clamp(hintT,0,1);
+    const hw=textWidth("WASD / ARROWS TO WALK",1)+8;
+    ctx.fillStyle="rgba(10,6,16,0.75)";
+    ctx.fillRect((VW-hw)/2, VH-28, hw, 16);
+    drawText(ctx, "WASD / ARROWS TO WALK", VW/2, VH-24, {s:1, c:"#fbf1dc", align:"center", shadow:"#0a0618"});
+    ctx.globalAlpha=1;
+  }
+  if(state==="fade"){
+    ctx.fillStyle="rgba(7,4,10,"+fade+")";
+    ctx.fillRect(0,0,VW,VH);
+  }
+}
+
+function frame(ts){
+  const dt=Math.min(0.05, lastTs? (ts-lastTs)/1000 : 0.016);
+  lastTs=ts;
+  update(dt);
+  ctx.imageSmoothingEnabled=false;
+  ctx.clearRect(0,0,VW,VH);
+  drawWorld();
+  if(state==="title") drawTitle();
+  drawHUD();
+  requestAnimationFrame(frame);
+}
+
+function fit(){
+  const vv=window.visualViewport;
+  const sw=(vv&&vv.width)?vv.width:window.innerWidth;
+  const sh=(vv&&vv.height)?vv.height:window.innerHeight;
+  const padL=0, // canvas is centered in #app which already has safe padding
+      availW=sw, availH=sh;
+  let s=Math.min(availW/VW, availH/VH);
+  if(s>1){
+    // prefer integer scale when it's close, otherwise fill the screen
+    const is=Math.floor(s);
+    if(s-is<0.12) s=is;
+  }
+  s=Math.max(s, 0.5);
+  cv.style.width=Math.round(VW*s)+"px";
+  cv.style.height=Math.round(VH*s)+"px";
+}
+
+/* ---- events ---- */
+window.addEventListener("keydown", ev=>{
+  const k=(ev.key||"").toLowerCase();
+  keys[k]=true;
+  if(["arrowup","arrowdown","arrowleft","arrowright"," ","enter","w","a","s","d","h","j","k","l"].indexOf(k)>=0) ev.preventDefault();
+  if(k==="enter"||k===" ") enterBuf=true;
+  if(k==="m") setMuted(!muted);
+});
+window.addEventListener("keyup", ev=>{
+  keys[(ev.key||"").toLowerCase()]=false;
+});
+
+function bindHold(el, key){
+  const on=ev=>{ ev.preventDefault(); pad[key]=true; el.classList.add("held"); if(state==="title" && key!=="enter") beginPlay(); };
+  const off=ev=>{ ev.preventDefault(); pad[key]=false; el.classList.remove("held"); };
+  el.addEventListener("pointerdown", on);
+  el.addEventListener("pointerup", off);
+  el.addEventListener("pointerleave", off);
+  el.addEventListener("pointercancel", off);
+  el.addEventListener("contextmenu", ev=>ev.preventDefault());
+}
+bindHold(document.getElementById("btnU"), "u");
+bindHold(document.getElementById("btnD"), "d");
+bindHold(document.getElementById("btnL"), "l");
+bindHold(document.getElementById("btnR"), "r");
+bindHold(document.getElementById("btnEnter"), "enter");
+
+document.getElementById("mute").addEventListener("click", ev=>{
+  ev.preventDefault(); ev.stopPropagation();
+  ensureAudio();
+  setMuted(!muted);
+  if(!muted) startMusic();
+});
+
+cv.addEventListener("pointerdown", ev=>{
+  if(state==="title"){ ev.preventDefault(); beginPlay(); }
+});
+
+const touchy=("ontouchstart" in window)||(navigator.maxTouchPoints>0)||(window.matchMedia&&window.matchMedia("(pointer:coarse)").matches);
+if(touchy) document.body.classList.add("touch");
+
+window.addEventListener("resize", fit);
+if(window.visualViewport) window.visualViewport.addEventListener("resize", fit);
+fit();
+cv.focus();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
