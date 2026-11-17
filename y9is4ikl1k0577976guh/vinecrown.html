@@ -693,7 +693,7 @@ function portraitDraw(g,key,x,y,D,f,t){ if(key==="felix"||key==="cub"){ bustDraw
 const BUST_EX=["neutral","smirk","worried","scared","angry"];
 const PORTRAIT_EX={felix:"neutral",cub:"neutral"};
 const BC_={line:"#1c120d", coat:"#b8722f", coatL:"#d08e48", coatD:"#8e5420", coatDD:"#74421a", cream:"#f3e0bd", creamD:"#d8bd92",
-  mane:"#4a4950", maneL:"#6f6f79", maneD:"#2e2d33", maneB:"#5e5048", iris:"#8a4a1c", irisL:"#c98436", irisD:"#4e2610",
+  mane:"#4c4a4e", maneL:"#74727a", maneD:"#2e2b2e", maneB:"#64544a", iris:"#8a4a1c", irisL:"#c98436", irisD:"#4e2610",
   nose:"#6e3a30", noseL:"#a46458", ear:"#e9c3a2", brow:"#24160f", bead:["#b8321e","#d0583a","#8a2a18","#e07a2a"]};
 const _bustCache={};
 function bustCanvas(who,ex,blink,talk,nF){
@@ -733,18 +733,18 @@ function _feather(g,x,y,len,rot,col,band,tip){
 function _eyes(g,o){ // o: {L:[x,y],R:[x,y],w,h,ex,blink,iris,pupil,cub}
   const ex=o.ex;
   [o.L,o.R].forEach((c,idx)=>{
-    const [x,y]=c, w=o.w, h=o.h*(ex==="scared"?1.25:1)*(ex==="angry"?0.8:1);
+    const fs=(idx&&o.farScale)?o.farScale:1; const [x,y]=c, w=o.w*fs, h=o.h*fs*(ex==="scared"?1.25:1)*(ex==="angry"?0.8:1);
     if(o.blink){ _curve(g,[x-w,y],[x,y+h*0.55],[x+w,y],BC_.line,1.6); return; }
     // white of the eye (small, cream) + big warm iris
     g.save(); _ell(g,x,y,w,h,0); _fill(g,"#fbf2df",0); g.clip();
-    const ir=o.iris*(ex==="scared"?0.78:1), px=x+(ex==="scared"?0:(idx?-0.8:-1.2)), py=y+0.4;
+    const ir=o.iris*fs*(ex==="scared"?0.78:1), px=x+(ex==="scared"?0:(o.look!==undefined?o.look*fs:(idx?-0.8:-1.2))), py=y+0.4;
     const grd=g.createLinearGradient(0,py-ir,0,py+ir); grd.addColorStop(0,BC_.irisD); grd.addColorStop(0.45,BC_.iris); grd.addColorStop(1,BC_.irisL);
     _ell(g,px,py,ir,ir*1.08,0); g.fillStyle=grd; g.fill();
-    _ell(g,px,py,o.pupil*(ex==="scared"?0.45:ex==="angry"?0.7:1),o.pupil*1.15*(ex==="scared"?0.45:1),0); g.fillStyle="#120806"; g.fill();
+    _ell(g,px,py,o.pupil*fs*(ex==="scared"?0.45:ex==="angry"?0.7:1),o.pupil*fs*1.15*(ex==="scared"?0.45:1),0); g.fillStyle="#120806"; g.fill();
     _ell(g,px-ir*0.38,py-ir*0.42,ir*0.32,ir*0.3,0); g.fillStyle="#fffaf0"; g.fill();
     _ell(g,px+ir*0.42,py+ir*0.45,ir*0.14,ir*0.14,0); g.fillStyle="rgba(255,250,240,0.85)"; g.fill();
     // sly half-lid (neutral/smirk) or heavy lid (angry)
-    const lid=ex==="neutral"?0.32:ex==="smirk"?0.42:ex==="angry"?0.4:ex==="worried"?0.18:0;
+    const lid=ex==="neutral"?0.22:ex==="smirk"?0.34:ex==="angry"?0.4:ex==="worried"?0.18:0;
     if(lid){ g.fillStyle=o.lidCol; if(ex==="angry"){ const s=idx?-1:1; _poly(g,[[x-w-1,y-h-1],[x+w+1,y-h-1],[x+w+1,y-h+h*2*lid*(s>0?1.5:0.5)],[x-w-1,y-h+h*2*lid*(s>0?0.5:1.5)]]); }
       else _poly(g,[[x-w-1,y-h-1],[x+w+1,y-h-1],[x+w+1,y-h+h*2*lid],[x-w-1,y-h+h*2*lid]]); g.fill(); }
     g.restore();
@@ -800,59 +800,125 @@ function _necklace(g,cx,y0,half,drop,nF,beadsOnly){
     _ell(g,p[0],p[1],1.9,1.9,0); _fill(g,BC_.bead[i%4],0.7); _ell(g,p[0]-0.6,p[1]-0.6,0.6,0.6,0); g.fillStyle="#f8a080"; g.fill();
   }
 }
+/* spiky fur ring: tufts flare outward from (cx,cy) along an arc, swept slightly downward like a heavy ruff */
+function _ruffArc(g,cx,cy,rx,ry,a0,a1,n,len,sweep,seed){
+  const pts=[];
+  for(let i=0;i<=n;i++){ const a=a0+(a1-a0)*i/n, a2=a0+(a1-a0)*(i+0.5)/n;
+    pts.push([cx+Math.cos(a)*rx, cy+Math.sin(a)*ry]);
+    if(i<n){ const l=len*(0.45+1.0*Math.abs(Math.sin(i*2.7+seed))*Math.abs(Math.sin(i*1.3+seed*2))+0.25*Math.sin(i*5.1)); const ta=a2+sweep*Math.sign(Math.cos(a2)||1);
+      pts.push([cx+Math.cos(a2)*rx+Math.cos(ta)*l, cy+Math.sin(a2)*ry+Math.sin(ta)*l]); } }
+  pts.push([cx,cy]); _poly(g,pts);
+}
+function _tufts(g,list,col,lw){ // little fur tufts breaking an edge: [x,y,dx,dy,w]
+  list.forEach(([x,y,dx,dy,w])=>{ const nx=-dy, ny=dx, l=Math.hypot(nx,ny)||1; _poly(g,[[x+nx/l*w,y+ny/l*w],[x+dx,y+dy],[x-nx/l*w,y-ny/l*w]]); _fill(g,col,0); if(lw){ _stroke(g,[[x+nx/l*w,y+ny/l*w],[x+dx,y+dy],[x-nx/l*w,y-ny/l*w]],BC_.line,lw); } });
+}
+function _ruffStreaks(g,cx,cy,r0,r1,a0,a1,n,cols,lw){
+  for(let i=0;i<n;i++){ const a=a0+(a1-a0)*(i+0.5)/n+Math.sin(i*1.9)*0.05; const k=0.85+0.25*Math.abs(Math.sin(i*3.1));
+    _curve(g,[cx+Math.cos(a)*r0,cy+Math.sin(a)*r0*1.05],[cx+Math.cos(a+0.05)*(r0+r1)/2,cy+Math.sin(a+0.05)*(r0+r1)/2*1.05+1],[cx+Math.cos(a+0.08)*r1*k,cy+Math.sin(a+0.08)*r1*k*1.05+2],cols[i%cols.length],lw); }
+}
+function _earPath(g,b1,c1,t1,tip,t2,c2,b2){ g.beginPath(); g.moveTo(b1[0],b1[1]); g.quadraticCurveTo(c1[0],c1[1],t1[0],t1[1]); g.quadraticCurveTo(tip[0],tip[1],t2[0],t2[1]); g.quadraticCurveTo(c2[0],c2[1],b2[0],b2[1]); g.closePath(); }
+function _tuftC(g,bx,by,tx,ty,w,col){ // one curved fur tuft from a base point to a tip
+  const dx=tx-bx, dy=ty-by, l=Math.hypot(dx,dy)||1, nx=-dy/l*w, ny=dx/l*w;
+  g.beginPath(); g.moveTo(bx+nx,by+ny); g.quadraticCurveTo(bx+dx*0.55+nx*0.9+dy*0.12,by+dy*0.55+ny*0.9-dx*0.12,tx,ty);
+  g.quadraticCurveTo(bx+dx*0.5-nx*0.5,by+dy*0.5-ny*0.5,bx-nx,by-ny); g.closePath(); _fill(g,col,0.6);
+}
+/* Felix v5: three-quarter view (snout toward the viewer's right like felix_oasis_lying, eyes glancing back to the viewer's left) */
 function drawFelixBust(g,ex,blink,talk,nF){
-  const L=BC_.line;
-  // back mane: dark grey shag framing the head, falling down the neck to the shoulders
-  _shag(g,[[50,4],[66,8],[79,20],[84,40],[82,60],[86,80],[88,98],[12,98],[14,80],[18,60],[16,40],[21,20],[34,8]],4,1); _fill(g,BC_.maneD,1.2);
-  _shag(g,[[50,7],[64,11],[76,22],[80,42],[78,62],[82,98],[18,98],[22,62],[20,42],[24,22],[36,11]],3,3); _fill(g,BC_.mane,0);
-  g.save(); _poly(g,[[12,8],[88,8],[88,98],[12,98]]); g.clip(); _strands(g,18,26,82,26,18,[BC_.maneD,BC_.maneL,BC_.maneB],0.7,0); _strands(g,18,56,82,56,18,[BC_.maneD,BC_.maneB,BC_.maneL],0.7,0); _strands(g,20,78,80,78,16,[BC_.maneD,BC_.maneL],0.7,0); g.restore();
-  // shoulders + cream chest
-  _smooth(g,[[10,98],[16,80],[32,70],[50,68],[68,70],[84,80],[90,98]]); _fill(g,BC_.coat,1.2);
-  _smooth(g,[[22,98],[24,84],[30,76],[22,96]]); g.fillStyle=BC_.coatD; g.fill();
-  _smooth(g,[[36,98],[38,78],[44,66],[56,66],[62,78],[64,98]]); _fill(g,BC_.cream,1);
-  // front mane locks over the shoulders, framing the chest
-  _shag(g,[[24,44],[34,56],[36,74],[32,92],[22,96],[16,80],[18,58]],3.5,5); _fill(g,BC_.mane,1);
-  _shag(g,[[76,44],[82,58],[84,80],[78,96],[68,92],[64,74],[66,56]],3.5,7); _fill(g,BC_.mane,1);
-  _strands(g,20,56,34,56,5,[BC_.maneL,BC_.maneD],0.7,-1); _strands(g,66,56,80,56,5,[BC_.maneL,BC_.maneD],0.7,1);
-  // feather necklace on red beads
-  _necklace(g,50,76,18,9,nF);
-  // head group, drawn larger around the face centre
-  g.save(); g.translate(50,44); g.scale(1.2,1.2); g.translate(-50,-44);
-  // ears: golden outside, dark rims, cream-pink inside with grey tufts
-  const ears=[[[24,34],[25,12],[29,9],[42,22]],[[58,22],[71,9],[75,12],[76,34]]];
-  ears.forEach((e,i)=>{ _smooth(g,e); _fill(g,BC_.coat,1.2);
-    const inn=i?[[61,24],[71,13],[73,15],[73,32]]:[[27,32],[27,15],[29,13],[39,24]]; _smooth(g,inn); _fill(g,BC_.ear,0);
-    g.save(); _smooth(g,e); g.clip(); g.fillStyle="#3a2a24"; g.fillRect(i?66:22,6,12,6); g.restore();
-    _strands(g,i?63:29,26,i?71:37,26,3,[BC_.maneL,"#9a9aa2"],0.6,i?-1:1); });
-  // head
-  const head=[[30,25],[40,18],[50,17],[60,18],[70,25],[74,38],[72,52],[64,64],[56,70],[44,70],[36,64],[28,52],[26,38]];
-  _smooth(g,head); _fill(g,BC_.coat,1.3);
+  const L=BC_.line, D=Math.PI/180;
+  const coat="#ad6b2c", coatL="#c98a42", coatD="#7e4a1e", coatDD="#5e3416", cream=BC_.cream, creamD=BC_.creamD;
+  // ---- back ruff: heavy shaggy mane around cheeks, jaw and neck (no hair locks)
+  // layered, curved tufts swept downward (dark outer layer, then mid-grey, then grey-brown highlights)
+  const ruffLayer=(r0,len,w,n,a0,a1,cols,seed)=>{ for(let i=0;i<n;i++){ const a=a0+(a1-a0)*i/(n-1), side=Math.sign(Math.cos(a))||1;
+      const l=len*(0.7+0.5*Math.abs(Math.sin(i*2.3+seed))), ta=a+0.5*side+Math.sin(i*1.7+seed)*0.12;
+      const bx=50+Math.cos(a)*r0, by=46+Math.sin(a)*r0*1.08; _tuftC(g,bx,by,bx+Math.cos(ta)*l,by+Math.sin(ta)*l,w,cols[i%cols.length]); } };
+  _ell(g,50,52,30,34,0); _fill(g,BC_.maneD,0);
+  ruffLayer(26,20,6.5,17,-16*D,196*D,[BC_.maneD,"#262428"],1);
+  ruffLayer(25,15,5.4,17,-10*D,190*D,[BC_.mane,BC_.maneB,BC_.mane],3);
+  ruffLayer(24,10,3.8,15,-2*D,182*D,[BC_.maneL,BC_.maneB,"#58545a"],5);
+  // ---- shoulders, cream chest ruff, then front ruff tufts over the shoulders
+  _smooth(g,[[6,99],[12,86],[30,79],[50,77],[70,79],[88,86],[94,99]]); _fill(g,coat,1.2);
+  _tufts(g,[[14,88,-3,-6,2.2],[20,84,-2,-6,2],[80,84,2,-6,2],[86,88,3,-6,2.2]],coat,0.6);
+  _smooth(g,[[32,99],[34,86],[42,78],[56,78],[64,86],[66,99]]); _fill(g,creamD,1);
+  _tufts(g,[[40,80,-2,-5,2],[46,78,0,-5,2],[53,78,1,-5,2],[59,80,2,-5,2]],creamD,0);
+  _ruffArc(g,22,76,9,13,100*D,250*D,7,7,0.5,6); _fill(g,BC_.mane,1);
+  _ruffArc(g,78,76,9,13,-70*D,80*D,7,7,0.5,8); _fill(g,BC_.mane,1);
+  _ruffStreaks(g,22,78,3,16,110*D,240*D,7,[BC_.maneL,BC_.maneD,BC_.maneB],0.7);
+  _ruffStreaks(g,78,78,3,16,-60*D,70*D,7,[BC_.maneL,BC_.maneD,BC_.maneB],0.7);
+  // ---- feather necklace on red/rust beads
+  _necklace(g,50,84,20,7,nF);
+  // ---- head group (three-quarter view)
+  g.save(); g.translate(50,40); g.scale(0.82,0.82); g.translate(-50,-40);
+  // ears: rounded cougar ears set wide and back; near ear larger, far ear narrower; dark rims
+  const EARS=[[[12,38],[8,18],[16,5],[21,0],[27,4],[32,10],[38,22]],[[68,22],[70,10],[75,4],[79,2],[83,5],[87,14],[85,32]]];
+  const INN=[[[17,34],[13,20],[18,9],[21,6],[25,8],[28,14],[33,22]],[[71,23],[73,13],[76,8],[79,6],[81,9],[83,16],[82,29]]];
+  [0,1].forEach(i=>{ const e=EARS[i];
+    _earPath(g,...e); _fill(g,coat,0);
+    _earPath(g,...INN[i]); _fill(g,BC_.ear,0);
+    g.save(); _earPath(g,...e); g.clip(); _earPath(g,...e); g.lineWidth=4; g.strokeStyle=coatDD; g.stroke(); g.restore();   // dark rims
+    _earPath(g,...e); g.lineWidth=1.3; g.strokeStyle=BC_.line; g.stroke();
+    _strands(g,i?75:19,26,i?81:31,26,i?3:4,[BC_.maneL,"#a6a6ae"],0.6,i?-1:1); });
+  // head shape
+  const head=[[22,26],[34,17],[50,15],[66,17],[78,24],[84,36],[85,50],[81,62],[74,72],[64,79],[50,81],[38,78],[28,70],[20,58],[17,42]];
+  _smooth(g,head); _fill(g,coat,1.3);
   g.save(); _smooth(g,head); g.clip();
-  g.fillStyle=BC_.coatD; _smooth(g,[[60,20],[78,30],[80,62],[62,70],[66,50],[64,34]]); g.fill();      // cel shadow on his left side
-  g.fillStyle=BC_.coatL; _ell(g,46,24,14,6,-0.1); g.fill();                                              // forehead light
-  g.fillStyle=BC_.coatD; _poly(g,[[33,37],[46,35],[50,38],[54,35],[67,37],[67,40],[33,40]]); g.globalAlpha=0.55; g.fill(); g.globalAlpha=1; // brow shadow
+  g.fillStyle=coatL; _ell(g,40,26,16,8,-0.15); g.fill();                                                    // forehead light
+  g.fillStyle=coatD; _smooth(g,[[66,18],[86,30],[88,58],[76,70],[70,60],[72,46],[68,32]]); g.fill();        // far-side cel shadow
+  g.fillStyle=coatD; _smooth(g,[[60,42],[64,44],[67,56],[64,58],[62,50]]); g.fill();                         // nose-bridge side
+  g.globalAlpha=0.55; g.fillStyle=coatD; _poly(g,[[32,36],[56,37],[60,40],[68,36],[82,30],[82,34],[66,41],[58,44],[32,41]]); g.fill(); g.globalAlpha=1; // brow shadow
+  g.fillStyle=coatDD; g.globalAlpha=0.6; _smooth(g,[[18,52],[26,64],[40,76],[30,78],[16,66]]); g.fill(); g.globalAlpha=1;     // jaw shade
   g.restore();
-  _rimLight(g,()=>_smooth(g,head),27,"rgba(255,214,150,0.55)");
-  // cream cheeks / muzzle / chin + cream marks around the eyes
-  const muz=[[29,48],[36,46],[44,49],[50,50],[56,49],[64,46],[71,48],[69,58],[60,68],[50,71],[40,68],[31,58]];
-  _smooth(g,muz); _fill(g,BC_.cream,0.9);
-  g.save(); _smooth(g,muz); g.clip(); g.fillStyle=BC_.creamD; _ell(g,54,68,14,5,0); g.fill(); _ell(g,64,56,4,8,0); g.globalAlpha=0.6; g.fill(); g.globalAlpha=1; g.restore();
-  g.fillStyle=BC_.cream; _ell(g,39,47,6.5,1.8,0.12); g.fill(); _ell(g,61,47,6.5,1.8,-0.12); g.fill(); _ell(g,38,34.5,3,1.1,-0.2); g.fill(); _ell(g,62,34,3,1.1,0.2); g.fill();
-   // dark whisker pads
-  // eyes + brows
-  _eyes(g,{L:[39.5,41],R:[60.5,41],w:6.6,h:4.4,ex,blink,iris:3.9,pupil:1.7,lidCol:BC_.coat});
-  _brows(g,[39.5,35],[60.5,34.5],ex,2.9,13.5);
-  // nose
-  _smooth(g,[[45.5,52],[54.5,52],[52,55.9],[50,56.7],[48,55.9]]); _fill(g,BC_.nose,0.9);
-  _ell(g,48.6,53.1,1.4,0.8,0); g.fillStyle=BC_.noseL; g.fill();
-  _mouth(g,50,60,ex,talk,0.9);
-
-  // crown tuft: grey fringe on top of the head falling forward
-  _smooth(g,[[34,25],[35,16],[40,13],[42,6],[47,11],[52,4],[55,11],[61,8],[62,15],[67,17],[66,25],[60,22],[57,27],[53,23],[49,29],[46,24],[41,27],[38,24]]); _fill(g,BC_.mane,1.1);
-  _curve(g,[44,10],[45,17],[46,24],BC_.maneL,0.7); _curve(g,[53,8],[53,16],[52,23],BC_.maneL,0.7); _curve(g,[39,16],[41,20],[41,25],BC_.maneD,0.7); _curve(g,[60,12],[60,18],[58,23],BC_.maneD,0.7);
-  // little expression extras
-  if(ex==="scared"){ _smooth(g,[[73,30],[75.5,35],[74,38.5],[71.5,37],[71.5,34]]); _fill(g,"#cfe8ff",0.7,"#4a6a8a"); }
-  if(ex==="angry"){ _stroke(g,[[45,38],[48,36]],"rgba(60,30,20,0.8)",0.8); _stroke(g,[[55,36],[52,38]],"rgba(60,30,20,0.8)",0.8); }
+  _rimLight(g,()=>_smooth(g,head),16,"rgba(255,206,140,0.55)");
+  // fur breaking from the coat into the ruff along the cheeks and jaw
+  _tufts(g,[[19,50,-5,2,2],[21,58,-5,4,2],[26,65,-4,5,2],[33,71,-3,5,2],[84,46,4,2,1.8],[82,56,4,4,1.8],[77,64,3,5,1.8]],coat,0.7);
+  // cream: near-cheek + muzzle + chin, far muzzle sliver, marks above the eyes
+  const muz=[[21,57],[29,54],[39,56],[48,60],[55,64],[60,67],[68,68],[71,74],[64,80],[50,82],[38,78],[28,70],[21,62]];
+  _smooth(g,muz); _fill(g,cream,0.9);
+  _curve(g,[44,79.5],[54,83.5],[64,79.5],"rgba(28,18,13,0.75)",0.9);   // chin line
+  g.save(); _smooth(g,muz); g.clip(); g.fillStyle=creamD; _ell(g,52,80,16,5,0); g.fill(); _ell(g,64,70,4,7,0); g.globalAlpha=0.7; g.fill(); g.globalAlpha=1; g.restore();
+  _smooth(g,[[68,63],[75,60],[80,61],[77,67],[70,69]]); _fill(g,cream,0.8);
+  g.fillStyle=cream; _ell(g,44,37.5,5.5,1.5,-0.08); g.fill(); _ell(g,73.5,35.5,3.4,1.2,-0.25); g.fill();
+  [[22,56,13,60,3],[21,61,12,66,3],[23,66,15,72,2.8],[27,70,21,77,2.5],[33,74,29,80,2.2]].forEach(t=>_tuftC(g,t[0],t[1],t[2],t[3],t[4],cream));   // fluffy cream cheek ruff
+  _smooth(g,muz); _fill(g,cream,0); g.fillStyle=cream; _ell(g,43,50.5,5.5,1.4,0.08); g.fill(); _ell(g,73,47.5,3,1,0); g.fill();
+  // broad rounded muzzle pad under the nose (cougar, not fox)
+  _ell(g,60.5,70,9.5,6,-0.08); _fill(g,cream,0); _ell(g,58,73.5,8,3.2,0); g.fillStyle=creamD; g.globalAlpha=0.55; g.fill(); g.globalAlpha=1;
+  _curve(g,[51,67],[49.5,71],[52,75],"rgba(120,80,50,0.45)",0.7);
+  // nose bridge highlight + dark cougar nose
+  _curve(g,[57,42],[59,50],[61,58],"rgba(230,170,100,0.6)",1.6);
+  _smooth(g,[[56,58.2],[67,57],[71,59.5],[68,64.4],[63.5,66.6],[59,64.4]]); _fill(g,"#3e221c",1);
+  _ell(g,61,59.6,2,0.9,-0.1); g.fillStyle="#7a4a40"; g.fill();
+  _ell(g,60.4,62.4,1,0.7,0); g.fillStyle="#140a08"; g.fill(); _ell(g,66.6,61.6,0.8,0.6,0); g.fill();
+  // eyes (near eye larger; gaze back toward the viewer's left) + heavy brows, far (viewer's right) brow higher
+  _eyes(g,{L:[44,44],R:[73.5,41.5],w:7,h:4.4,farScale:0.68,look:-1.6,ex,blink,iris:4,pupil:1.8,lidCol:coat});
+  const BR={neutral:[[0,0],[0,0]],smirk:[[1,0.5],[-1.5,-2.5]],worried:[[-3,1.5],[-2.5,1.5]],scared:[[-3,-3],[-2.5,-3]],angry:[[3,-1],[2.5,-1]]}[ex]||[[0,0],[0,0]];
+  const brow=(inner,outer,mid,w)=>{ g.beginPath(); g.moveTo(inner[0],inner[1]); g.quadraticCurveTo(mid[0],mid[1],outer[0],outer[1]); g.quadraticCurveTo(mid[0],mid[1]+w,inner[0],inner[1]+w*0.9); g.closePath(); g.fillStyle=BC_.brow; g.fill(); g.lineWidth=0.6; g.strokeStyle=BC_.brow; g.stroke(); };
+  brow([54,38+BR[0][0]],[34,37.5+BR[0][1]],[43,34.5+Math.min(BR[0][0],BR[0][1])],3);
+  brow([66,36.5+BR[1][0]],[80.5,30+BR[1][1]],[74,30.5+Math.min(BR[1][0],BR[1][1])],2.4);
+  // mouth: crooked closed smile sweeping up on the near side
+  const N=[63.5,66.2];
+  _stroke(g,[N,[63.5,69.5]],L,1.1);
+  if(ex==="neutral"||ex==="smirk"){
+    _curve(g,[63.5,69.5],[52,73.5],[42,63.5],L,1.3); _stroke(g,[[42,63.5],[40.5,61]],L,1.1);
+    _curve(g,[63.5,69.5],[66.5,70.5],[69.5,68.6],L,1.1);
+    if(ex==="smirk"||talk){ _poly(g,[[46,67],[54,71],[61,70.6],[58,73.6],[51,73.8],[46.5,70]]); _fill(g,"#4a1416",0.9,L);
+      if(ex==="smirk"){ _poly(g,[[50.5,71.2],[53.4,71.8],[51.8,75]]); _fill(g,"#fffaf0",0.5,L); } }
+  } else if(ex==="worried"){
+    _curve(g,[63.5,70],[55,69.5],[47,73],L,1.2); _curve(g,[63.5,70],[66.5,70.4],[69,71.6],L,1.05);
+    if(talk){ _ell(g,57,72.2,2.6,1.4,0); _fill(g,"#4a1416",0.9); }
+  } else if(ex==="scared"){
+    _ell(g,59,73,(talk?3.2:2.6),(talk?3.6:2.9),0); _fill(g,"#3a1012",1.1); _ell(g,59,74.8,1.7,0.9,0); g.fillStyle="#c85a5a"; g.fill();
+  } else if(ex==="angry"){
+    _poly(g,[[44,66.5],[52,68.4],[63.5,69.5],[69.5,68.6],[67.5,75.5],[50,76],[45,71]]); _fill(g,"#3a1012",1.2);
+    [[51,68.6],[64,69.8]].forEach(([fx_,fy])=>{ _poly(g,[[fx_-1.4,fy],[fx_+1.4,fy+0.2],[fx_,fy+3]]); _fill(g,"#fffaf0",0.5); });
+    _stroke(g,[[57,46],[60,45]],"rgba(60,30,20,0.85)",0.8); _stroke(g,[[57.5,49],[61,48.4]],"rgba(60,30,20,0.85)",0.8);
+  }
+  // faint whiskers from the near muzzle
+  g.globalAlpha=0.4; _curve(g,[50,64],[40,62],[30,61],"#fbf3e6",0.5); _curve(g,[51,66],[41,66],[31,67],"#fbf3e6",0.5); g.globalAlpha=1;
+  // crown tuft: short spiky fringe between the ears, swept toward the far side
+  _smooth(g,[[32,24],[40,17],[52,15],[64,17],[69,22],[62,24],[54,23],[46,25],[38,26]]); _fill(g,BC_.mane,1);
+  [[36,23,33,12,2.8,BC_.maneB],[42,21,41,7,3.2,BC_.mane],[48,20,50,4,3.4,BC_.maneL],[54,20,59,6,3.2,BC_.mane],[59,21,67,10,3,BC_.maneB],[64,22,72,16,2.6,BC_.mane],
+   [40,25,37,30,2,BC_.mane],[47,24,46,31,2.2,BC_.mane],[53,23,55,29,2,BC_.maneD],[59,23,62,28,1.8,BC_.mane]].forEach(t=>{ g.save(); g.globalAlpha=1; _tuftC(g,t[0],t[1],t[2],t[3],t[4],t[5]); g.restore(); });
+  _curve(g,[42,19],[42,12],[41.5,7],BC_.maneL,0.6); _curve(g,[49,18],[49.5,10],[50,5],BC_.maneL,0.6); _curve(g,[57,19],[59,12],[60,7],BC_.maneL,0.6);
+  if(ex==="scared"){ _smooth(g,[[85,28],[87.8,33.5],[86.2,37.4],[83.5,36],[83.4,32.4]]); _fill(g,"#cfe8ff",0.7,"#4a6a8a"); }
   g.restore();
 }
 function drawCubBust(g,ex,blink,talk){
