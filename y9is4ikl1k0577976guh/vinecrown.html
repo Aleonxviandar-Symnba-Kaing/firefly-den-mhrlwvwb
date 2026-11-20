@@ -698,11 +698,13 @@ const BC_={line:"#1c120d", coat:"#b8722f", coatL:"#d08e48", coatD:"#8e5420", coa
 const _bustCache={};
 function bustCanvas(who,ex,blink,talk,nF){
   const id=who+ex+(blink?1:0)+(talk?1:0)+nF; if(_bustCache[id]) return _bustCache[id];
-  const S=2, big=document.createElement("canvas"); big.width=big.height=96*S; const g=big.getContext("2d");
+  const S=who==="cub"?2:4, big=document.createElement("canvas"); big.width=big.height=96*S; const g=big.getContext("2d");
   g.scale(S,S); g.lineJoin="round"; g.lineCap="round";
-  try{ (who==="cub"?drawCubBust:drawFelixBust)(g,ex,blink,talk,nF); }catch(e){ console.error(e); }
+  try{ (who==="cub"?drawCubBust:drawFelixBust)(g,ex,blink,talk,nF); }catch(e){ console.error(e); } g.filter="none";
+  let src=big;
+  if(S===4){ const mid=document.createElement("canvas"); mid.width=mid.height=192; const mg=mid.getContext("2d"); mg.imageSmoothingEnabled=true; mg.imageSmoothingQuality="high"; mg.drawImage(big,0,0,192,192); src=mid; }
   const c=document.createElement("canvas"); c.width=c.height=96; const cg=c.getContext("2d"); cg.imageSmoothingEnabled=true; cg.imageSmoothingQuality="high";
-  cg.drawImage(big,0,0,96,96); _bustCache[id]=c; return c;
+  cg.drawImage(src,0,0,96,96); _bustCache[id]=c; c._big=big; return c;
 }
 /* path helpers */
 function _smooth(g,pts){ g.beginPath(); const n=pts.length; let m=[(pts[n-1][0]+pts[0][0])/2,(pts[n-1][1]+pts[0][1])/2]; g.moveTo(m[0],m[1]);
@@ -822,85 +824,168 @@ function _tuftC(g,bx,by,tx,ty,w,col){ // one curved fur tuft from a base point t
   g.beginPath(); g.moveTo(bx+nx,by+ny); g.quadraticCurveTo(bx+dx*0.55+nx*0.9+dy*0.12,by+dy*0.55+ny*0.9-dx*0.12,tx,ty);
   g.quadraticCurveTo(bx+dx*0.5-nx*0.5,by+dy*0.5-ny*0.5,bx-nx,by-ny); g.closePath(); _fill(g,col,0.6);
 }
-/* Felix v6: masculine 90s furry-toon cougar, three-quarter view (snout toward the viewer's right, like felix_oasis_lying).
-   Broad heavy jaw + square chin, short blunt cat snout with a wide muzzle pad, heavy brow ridge, hooded eyes,
-   soft grey toon ruff in long swooping clumps that sweep down over the chest, messy crown tuft. Flat cel colour + 1 shade + 1 highlight. */
-const V6={coat:"#b06e2e",coatS:"#86501f",coatH:"#cf9150",coatRim:"#6a3c18",cream:"#f3e0bd",creamS:"#d6b98c",
-  mane:"#575560",maneS:"#3a3840",maneH:"#807e88",maneB:"#665650",ear:"#e6bea0",line:"#1a100b",rim:"rgba(255,168,92,0.62)"};
-function _clump(g,bx,by,tx,ty,w,bend,col,lw){ // one soft toon fur clump: fat base, curved sides, rounded-pointed tip
-  const dx=tx-bx, dy=ty-by, l=Math.hypot(dx,dy)||1, nx=-dy/l, ny=dx/l;
-  const c1=[bx+dx*0.5+nx*(w*0.9+bend), by+dy*0.5+ny*(w*0.9+bend)], c2=[bx+dx*0.55-nx*(w*0.5-bend), by+dy*0.55-ny*(w*0.5-bend)];
-  const ux=dx/l, uy=dy/l, r=Math.max(0.9,w*0.32), ta=[tx-ux*r+nx*r,ty-uy*r+ny*r], tb=[tx-ux*r-nx*r,ty-uy*r-ny*r];
-  g.beginPath(); g.moveTo(bx+nx*w,by+ny*w); g.quadraticCurveTo(c1[0],c1[1],ta[0],ta[1]); g.quadraticCurveTo(tx+ux*r*0.6,ty+uy*r*0.6,tb[0],tb[1]); g.quadraticCurveTo(c2[0],c2[1],bx-nx*w,by-ny*w); g.closePath();
-  g.fillStyle=col; g.fill(); if(lw){ g.lineWidth=lw; g.strokeStyle=V6.line; g.stroke(); }
+/* Felix v7: polished 90s furry-toon cougar (keeps v6's masculine head: square jaw, blunt cat snout, heavy brows, hooded amber eyes).
+   Soft voluminous grey ruff of large S-curved tapered locks, warm golden-tan coat with soft 2-step shading,
+   dark-brown variable-weight lines, sunset rim light, dusk glow + fireflies behind the bust. Drawn at 4x, downsampled smoothly. */
+const V7={coat:"#c47f37",coatH:"#e2a65e",coatS:"#9a5524",coatSS:"#7a3e1a",rim:"rgba(255,176,96,0.75)",
+  cream:"#f6e6c6",creamS:"#e0c497",mane:"#605c63",maneU:"#473c39",maneUU:"#332927",maneH:"#85818a",maneHH:"#a9a5ac",
+  ear:"#f1c9b1",earD:"#d79c86",earRim:"#4a2a18",line:"#2b170d",lineI:"#5a3220",blurK:4};
+function _blur(g,u){ g.filter=u?("blur("+(u*V7.blurK)+"px)"):"none"; }
+/* one tapered S-curved fur lock: base b -> tip t, perpendicular bends at 1/3 and 2/3 (opposite signs = S-curve) */
+function _lockPath(g,b,t,w,b1,b2){
+  const dx=t[0]-b[0], dy=t[1]-b[1], l=Math.hypot(dx,dy)||1, nx=-dy/l, ny=dx/l;
+  const c1=[b[0]+dx/3+nx*b1,b[1]+dy/3+ny*b1], c2=[b[0]+dx*2/3+nx*b2,b[1]+dy*2/3+ny*b2];
+  const P=s=>{ const u=1-s; return [u*u*u*b[0]+3*u*u*s*c1[0]+3*u*s*s*c2[0]+s*s*s*t[0], u*u*u*b[1]+3*u*u*s*c1[1]+3*u*s*s*c2[1]+s*s*s*t[1]]; };
+  const N=18, A=[], B=[];
+  for(let i=0;i<=N;i++){ const s=i/N, p=P(s), q=P(Math.min(1,s+0.02)), r=P(Math.max(0,s-0.02));
+    let tx=q[0]-r[0], ty=q[1]-r[1]; const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
+    const ww=w*Math.pow(1-s,0.75)*(0.85+0.5*Math.sin(Math.PI*Math.min(1,s*1.4)));
+    A.push([p[0]-ty*ww,p[1]+tx*ww]); B.push([p[0]+ty*ww,p[1]-tx*ww]); }
+  g.beginPath(); g.moveTo(A[0][0],A[0][1]); for(let i=1;i<A.length;i++) g.lineTo(A[i][0],A[i][1]);
+  for(let i=B.length-1;i>=0;i--) g.lineTo(B[i][0],B[i][1]); g.closePath();
+  return P;
 }
-function _clumpHi(g,bx,by,tx,ty,bend,col){ // highlight stroke inside a clump
-  _curve(g,[bx+(tx-bx)*0.15,by+(ty-by)*0.15],[bx+(tx-bx)*0.5+bend*0.4,by+(ty-by)*0.5],[bx+(tx-bx)*0.8,by+(ty-by)*0.8],col,1.1);
+function _locks(g,list,col,o){ // o: {sil:lw, inner:lw, dx,dy,grow,len}
+  o=o||{}; const L2=list.map(k=>{ const b=k[0], t=[k[1][0]+(o.dx||0),k[1][1]+(o.dy||0)]; return [b,t,k[2]*(o.grow||1),k[3],k[4]]; });
+  if(o.sil){ g.lineWidth=o.sil; g.strokeStyle=V7.line; L2.forEach(k=>{ _lockPath(g,...k); g.stroke(); }); }
+  L2.forEach(k=>{ _lockPath(g,...k); g.fillStyle=(typeof col==="function")?col(k):col; g.fill(); if(o.inner){ g.lineWidth=o.inner; g.strokeStyle=V7.lineI; g.stroke(); } });
+}
+function _lockHi(g,list,col,f,wf){ // inner highlight strand riding each lock
+  list.forEach(k=>{ const [b,t,w,b1,b2]=k, dx=t[0]-b[0], dy=t[1]-b[1], l=Math.hypot(dx,dy)||1, nx=-dy/l*w*(f||0.3), ny=dx/l*w*(f||0.3);
+    _lockPath(g,[b[0]+dx*0.12+nx,b[1]+dy*0.12+ny],[b[0]+dx*0.86+nx*0.4,b[1]+dy*0.86+ny*0.4],w*(wf||0.22),b1*0.8,b2*0.8); g.fillStyle=col; g.fill(); });
+}
+function _feather7(g,x,y,len,rot,vane,band,tip){
+  g.save(); g.translate(x,y); g.rotate(rot);
+  const w=len*0.2;
+  const vp=()=>{ g.beginPath(); g.moveTo(0,0); g.bezierCurveTo(w*1.25,len*0.2,w*1.1,len*0.75,0,len); g.bezierCurveTo(-w*1.1,len*0.72,-w*1.25,len*0.2,0,0); g.closePath(); };
+  vp(); g.fillStyle=vane; g.fill();
+  g.save(); vp(); g.clip();
+  g.fillStyle=band; g.fillRect(-w*2,len*0.42,w*4,len*0.07); g.fillRect(-w*2,len*0.58,w*4,len*0.05);
+  if(tip){ g.fillStyle=tip; g.fillRect(-w*2,len*0.8,w*4,len); }
+  g.fillStyle="rgba(0,0,0,0.12)"; g.fillRect(0,0,w*2,len);           // one soft shade half
+  g.strokeStyle="rgba(255,255,255,0.25)"; g.lineWidth=0.35; for(let k=1;k<5;k++){ g.beginPath(); g.moveTo(0,len*k*0.18); g.lineTo(-w*1.1,len*k*0.18+len*0.08); g.stroke(); }
+  g.restore();
+  // tiny notch in the vane edge
+  g.fillStyle=V7.maneUU; g.beginPath(); g.moveTo(w*1.05,len*0.5); g.lineTo(w*0.45,len*0.53); g.lineTo(w*1.0,len*0.57); g.fill();
+  vp(); g.lineWidth=0.6; g.strokeStyle=V7.line; g.stroke();
+  g.beginPath(); g.moveTo(0,-1.2); g.quadraticCurveTo(0.35,len*0.5,0,len*0.96); g.lineWidth=0.5; g.strokeStyle="#4a3020"; g.stroke(); // shaft
+  g.restore();
+}
+function _necklace7(g,cx,y0,half,drop,nF){
+  const pt=t=>{ const x=cx-half+t*half*2; return [x, y0+(1-Math.pow((x-cx)/half,2))*drop]; };
+  g.beginPath(); for(let i=0;i<=24;i++){ const p=pt(i/24); if(i) g.lineTo(p[0],p[1]); else g.moveTo(p[0],p[1]); } g.strokeStyle="#3a2214"; g.lineWidth=0.9; g.stroke();
+  const BEAD=["#c0331f","#a8461f","#e07a2a","#c0331f","#8e3418","#e8902e"];
+  const FE=[["#efe4cc","#7a5c44","#5a3a26"],["#b48858","#5a3e2a","#f2e8d2"],["#f2e8d2","#8a7058",null],["#a07448","#4e3424","#efe4cc"]];
+  const fpos=nF>=4?[0.2,0.4,0.6,0.8]:[0.28,0.5,0.72];
+  fpos.forEach((t,i)=>{ const p=pt(t); _feather7(g,p[0],p[1]+1.4,11.5+(i%2?1.5:0)+(Math.abs(t-0.5)<0.15?2:0),(t-0.5)*0.55,...FE[i%4]); });
+  for(let i=0;i<=10;i++){ const t=0.05+i*0.09, p=pt(t); if(fpos.some(f=>Math.abs(f-t)<0.035)) continue;
+    const r=(i%2?1.5:1.9); _ell(g,p[0],p[1],r,r,0); g.fillStyle=BEAD[i%6]; g.fill(); g.lineWidth=0.5; g.strokeStyle=V7.line; g.stroke();
+    _ell(g,p[0]-r*0.35,p[1]-r*0.4,r*0.35,r*0.3,0); g.fillStyle="rgba(255,220,190,0.85)"; g.fill(); }
+  fpos.forEach(t=>{ const p=pt(t); _ell(g,p[0],p[1],1.6,1.6,0); g.fillStyle="#c0331f"; g.fill(); g.lineWidth=0.5; g.strokeStyle=V7.line; g.stroke(); });
+}
+function _eyes7(g,o){
+  const ex=o.ex, C=V7;
+  [o.L,o.R].forEach((c,idx)=>{
+    const fs=idx?o.farScale:1; const [x,y]=c, w=o.w*fs, h=o.h*fs*(ex==="scared"?1.3:1)*(ex==="angry"?0.82:1);
+    const lidT=(ex==="neutral"?0.22:ex==="smirk"?0.32:ex==="angry"?0.38:ex==="worried"?0.14:0)+(ex!=="scared"?0.08:0);
+    if(o.blink){ g.beginPath(); g.moveTo(x-w,y-0.2); g.quadraticCurveTo(x,y+h*0.6,x+w,y-0.4); g.lineWidth=1.7; g.strokeStyle=C.line; g.stroke(); return; }
+    const shape=()=>{ g.beginPath(); g.moveTo(x-w,y+0.3); g.bezierCurveTo(x-w*0.6,y-h*1.15,x+w*0.55,y-h*1.2,x+w,y-0.5); g.bezierCurveTo(x+w*0.6,y+h*1.05,x-w*0.55,y+h*1.05,x-w,y+0.3); g.closePath(); };
+    shape(); g.fillStyle="#fbf3e2"; g.fill();
+    g.save(); shape(); g.clip();
+    const ir=o.iris*fs*(ex==="scared"?0.8:1), px=x+(ex==="scared"?0:o.look*fs), py=y+0.5;
+    const gr=g.createRadialGradient(px-ir*0.15,py+ir*0.25,ir*0.1,px,py,ir); gr.addColorStop(0,"#f2b450"); gr.addColorStop(0.5,"#c47a28"); gr.addColorStop(0.85,"#7a3c14"); gr.addColorStop(1,"#4a220c");
+    _ell(g,px,py,ir,ir*1.05,0); g.fillStyle=gr; g.fill();
+    _ell(g,px,py,ir,ir*1.05,0); g.lineWidth=0.45; g.strokeStyle="#3a1a08"; g.stroke();
+    const pr=o.pupil*fs*(ex==="scared"?0.5:ex==="angry"?0.75:1); _ell(g,px+0.1,py,pr*0.85,pr*1.2,0); g.fillStyle="#1a0c06"; g.fill();
+    _ell(g,px-ir*0.36,py-ir*0.38,ir*0.3,ir*0.27,-0.3); g.fillStyle="#ffffff"; g.fill();               // crisp highlight
+    _ell(g,px+ir*0.42,py+ir*0.42,ir*0.13,ir*0.12,0); g.fillStyle="rgba(255,248,236,0.9)"; g.fill();   // small secondary
+    // hooded lid (coat-coloured) with a soft shadow under it
+    if(lidT){ const s=idx?-1:1, k=ex==="angry"?[1.5,0.5]:[1,1];
+      const yl=y-h*1.2+h*2.2*lidT*(s>0?k[1]:k[0]), yr=y-h*1.2+h*2.2*lidT*(s>0?k[0]:k[1]);
+      g.fillStyle="rgba(90,40,14,0.35)"; _poly(g,[[x-w-1,y-h*2],[x+w+1,y-h*2],[x+w+1,yr+1.1],[x-w-1,yl+1.1]]); g.fill();
+      g.fillStyle=C.coat; _poly(g,[[x-w-1,y-h*2],[x+w+1,y-h*2],[x+w+1,yr],[x-w-1,yl]]); g.fill();
+      g.lineWidth=1.9; g.strokeStyle=C.line; g.beginPath(); g.moveTo(x-w-1,yl); g.lineTo(x+w+1,yr); g.stroke(); }
+    g.restore();
+    // dark upper lid line (thick, with a small outer flick) + thin lower line
+    if(!lidT){ g.beginPath(); g.moveTo(x-w,y+0.3); g.bezierCurveTo(x-w*0.6,y-h*1.15,x+w*0.55,y-h*1.2,x+w,y-0.5); g.lineWidth=1.8; g.strokeStyle=C.line; g.stroke(); }
+    const fl=idx?1:-1; g.beginPath(); g.moveTo(x+fl*w,y+(idx?-0.5:0.3)); g.quadraticCurveTo(x+fl*(w+1.2),y-1,x+fl*(w+2.4),y-1.6); g.lineWidth=1.3; g.strokeStyle=C.line; g.stroke();
+    g.beginPath(); g.moveTo(x-w*0.75,y+h*0.75); g.quadraticCurveTo(x,y+h*1.05,x+w*0.75,y+h*0.7); g.lineWidth=0.6; g.strokeStyle="rgba(60,30,16,0.6)"; g.stroke();
+    shape(); g.lineWidth=0.5; g.strokeStyle="rgba(43,23,13,0.7)"; g.stroke();
+  });
 }
 function drawFelixBust(g,ex,blink,talk,nF){
-  const C=V6, L=C.line;
-  // ---- back ruff: few, long, swooping clumps around cheeks/jaw (dark layer, then base layer)
-  const backN=[[26,28,8,40,8,-6],[23,38,4,56,9,-6],[22,50,4,70,9,-5],[25,60,7,84,9,-4],[30,68,14,98,9,-3]];
-  const backF=[[74,26,90,36,7,6],[78,36,94,50,8,6],[79,48,95,66,8.5,5],[76,58,93,82,8.5,4],[71,66,87,98,8.5,3]];
-  [...backN,...backF].forEach(c=>_clump(g,c[0],c[1],c[2]+(c[2]<50?-2:2),c[3]+3,c[4]+1.5,c[5],C.maneS,1.6));
-  [...backN,...backF].forEach(c=>_clump(g,c[0],c[1],c[2],c[3],c[4],c[5],C.mane,0));
-  [...backN,...backF].forEach((c,i)=>_clumpHi(g,c[0],c[1],c[2],c[3],c[5],i%3===1?C.maneB:C.maneH));
-  // ---- thick neck + shoulders (one shade), cream chest
-  _smooth(g,[[4,99],[10,86],[24,76],[36,72],[66,72],[78,76],[90,86],[96,99]]); _fill(g,C.coat,1.6);
-  _smooth(g,[[4,99],[10,88],[22,80],[18,99]]); g.fillStyle=C.coatS; g.fill();
-  _smooth(g,[[70,78],[86,84],[94,99],[78,99]]); g.fillStyle=C.coatS; g.fill();
-  _smooth(g,[[36,99],[38,84],[44,76],[60,76],[66,84],[68,99]]); _fill(g,C.cream,0.9);
-  _smooth(g,[[56,82],[64,80],[67,99],[58,99]]); g.fillStyle=C.creamS; g.fill();
-  // optional faint healed hash scar on the far shoulder
-  g.globalAlpha=0.55; _stroke(g,[[83,86],[86,93]],"#4a2410",1); _stroke(g,[[86,85],[89,92]],"#4a2410",1); _stroke(g,[[82,89.5],[90,88.5]],"#4a2410",0.9); g.globalAlpha=1;
-  // ---- front ruff sweeping down over the chest (cream centre stays open)
-  const front=[[28,72,20,96,7.5,-4],[35,74,32,98,6.5,-3],[41,76,43,95,5,-1],[63,76,61,95,5,1],[70,74,73,98,6.5,3],[75,71,84,95,7.5,4]];
-  front.forEach(c=>_clump(g,c[0],c[1],c[2],c[3],c[4],c[5],c[0]<50?C.mane:C.maneS,1.2));
-  front.forEach((c,i)=>_clumpHi(g,c[0],c[1],c[2],c[3],c[5],i%2?C.maneH:C.maneB));
-  // ---- feather necklace on red/rust beads
-  _necklace(g,52,84,19,7,nF);
-  // ---- ears: rounder + shorter, set wide, dark rims
-  const EARS=[[[21,34],[15,16],[22,9],[27,7],[32,9],[37,13],[40,21]],[[66,19],[68,11],[72,8],[76,7],[80,9],[84,15],[81,30]]];
-  const INN=[[[25,31],[21,18],[25,13],[28,11.5],[31,13],[34,16],[36,22]],[[69,20],[70,14],[73,11.5],[76,11],[78,12.5],[81,17],[79,27]]];
-  [0,1].forEach(i=>{ _earPath(g,...EARS[i]); _fill(g,C.coat,0); _earPath(g,...INN[i]); _fill(g,C.ear,0);
-    g.save(); _earPath(g,...EARS[i]); g.clip(); _earPath(g,...EARS[i]); g.lineWidth=4.4; g.strokeStyle=C.coatRim; g.stroke(); g.restore();
-    _earPath(g,...EARS[i]); g.lineWidth=1.6; g.strokeStyle=L; g.stroke();
-    _clump(g,i?75:28,i?24:26,i?73:32,i?16:17,2,i?-1:1,C.maneH,0.6); });
-  // ---- broad masculine head: heavy jaw, square chin
+  const C=V7, L=C.line;
+  // ---- soft dusk-oasis glow + fireflies (fades to transparent at the edges so it frames, not boxes)
+  let gr=g.createRadialGradient(50,46,4,50,52,58); gr.addColorStop(0,"rgba(255,176,96,0.7)"); gr.addColorStop(0.45,"rgba(214,104,62,0.42)"); gr.addColorStop(0.8,"rgba(90,40,70,0.14)"); gr.addColorStop(1,"rgba(40,20,40,0)");
+  g.fillStyle=gr; g.fillRect(0,0,96,96);
+  [[10,20,1.1],[88,16,0.9],[86,58,0.8]].forEach(([x,y,r])=>{ const fg=g.createRadialGradient(x,y,0,x,y,r*4); fg.addColorStop(0,"rgba(255,236,150,0.95)"); fg.addColorStop(0.3,"rgba(255,200,90,0.5)"); fg.addColorStop(1,"rgba(255,180,80,0)"); g.fillStyle=fg; g.fillRect(x-r*4,y-r*4,r*8,r*8); });
+  // ---- back ruff: large S-curved tapered locks sweeping down + outward past the jaw (under-layer, main, highlights)
+  const NEAR=[[[32,24],[13,40],9.5,-4,5],[[26,38],[7,62],11,-5,5.5],[[24,54],[9,86],11.5,-4.5,5.5],[[30,66],[18,100],10.5,-3,4]];
+  const FAR=[[[66,20],[85,32],8.5,4,-4],[[76,34],[92,56],10,5,-5],[[77,50],[91,82],10.5,4.5,-5],[[72,64],[84,100],10,3,-4]];
+  const CROWNB=[[[40,22],[26,12],6,-3,2],[[52,19],[66,10],6,-3,2.5]];
+  const BACK=[...NEAR,...FAR,...CROWNB];
+  _locks(g,BACK,C.maneUU,{sil:2.6,dx:0,dy:3,grow:1.12});
+  _locks(g,BACK,C.maneU,{dx:0,dy:1.5,grow:1.04});
+  _locks(g,BACK,C.mane,{inner:0.55});
+  _lockHi(g,BACK,C.maneH,0.32,0.24); _lockHi(g,BACK.filter((k,i)=>i%2===0),C.maneHH,0.45,0.07);
+  // ---- thick neck + shoulders, soft shaded; cream chest
+  const torso=[[2,99],[8,86],[22,76],[36,72],[66,72],[80,76],[92,86],[98,99]];
+  _smooth(g,torso); g.lineWidth=2.4; g.strokeStyle=L; g.stroke();
+  gr=g.createLinearGradient(10,0,92,0); gr.addColorStop(0,C.coatH); gr.addColorStop(0.45,C.coat); gr.addColorStop(1,C.coatS); _smooth(g,torso); g.fillStyle=gr; g.fill();
+  g.save(); _smooth(g,torso); g.clip(); _blur(g,1.5); g.fillStyle="rgba(120,60,24,0.5)"; _ell(g,50,76,30,5,0); g.fill(); _blur(g,0); g.restore();
+  const chest=[[36,99],[38,84],[44,76],[60,76],[66,84],[68,99]];
+  _smooth(g,chest); g.fillStyle=C.cream; g.fill();
+  g.save(); _smooth(g,chest); g.clip(); _blur(g,1.2); g.fillStyle=C.creamS; _ell(g,64,90,6,14,0); g.fill(); _ell(g,52,77,12,3,0); g.fill(); _blur(g,0); g.restore();
+  g.globalAlpha=0.4; _curve(g,[83,86],[84.5,89.5],[86,93],"#5a2a12",0.9); _curve(g,[86,85],[87.5,88.5],[89,92],"#5a2a12",0.9); _curve(g,[82,89.5],[86,89.4],[90,88.5],"#5a2a12",0.8); g.globalAlpha=1; // faint healed scar
+  // ---- front ruff: locks flowing from the jaw down over the chest (centre stays open for the cream + necklace)
+  const FRONT=[[[28,68],[18,100],10,-3,3.5],[[38,74],[38,99],7,-2,2.5],[[66,74],[66,99],7,2,-2.5],[[76,68],[86,100],10,3,-3.5]];
+  _locks(g,FRONT,C.maneUU,{sil:2,dy:1.5,grow:1.08});
+  _locks(g,FRONT,(k)=>k[0][0]<50?C.mane:"#5e5b64",{inner:0.55});
+  _lockHi(g,FRONT,C.maneH,0.32,0.18);
+  _necklace7(g,52,79,17,6,nF);
+  // ---- ears: cougar (a little taller than v6), rounded tips, dark rims, pink-cream inside
+  const EARS=[[[21,34],[14,14],[21,5],[26,2.5],[31,4.5],[37,11],[41,21]],[[66,19],[67,9],[71,4.5],[75.5,3],[79.5,5],[84,13],[81,30]]];
+  const INN=[[[25,31],[20,16],[24,9.5],[27,7.5],[30,9],[34,14],[36,22]],[[69,20],[70,12],[73,8.5],[76,7.5],[78.5,9],[81,15],[79,27]]];
+  [0,1].forEach(i=>{ _earPath(g,...EARS[i]); g.lineWidth=2.4; g.strokeStyle=L; g.stroke(); g.fillStyle=i?C.coatS:C.coat; g.fill();
+    _earPath(g,...INN[i]); const eg=g.createLinearGradient(0,6,0,30); eg.addColorStop(0,C.earD); eg.addColorStop(1,C.ear); g.fillStyle=eg; g.fill();
+    g.save(); _earPath(g,...EARS[i]); g.clip(); _earPath(g,...EARS[i]); g.lineWidth=3.6; g.strokeStyle=C.earRim; g.stroke(); g.restore();
+    _locks(g,[[[i?76:28,i?25:27],[i?74:31,i?13:14],1.8,i?-1:1,i?1:-1]],"#fbeee0",{}); });
+  // ---- broad masculine head (v6 geometry), soft 2-step shading
   const head=[[30,22],[42,16],[56,16],[68,20],[76,28],[80,40],[81,52],[78,62],[74,70],[68,76],[60,79.5],[50,79.5],[40,77],[30,72],[23,64],[20,54],[21,40],[24,30]];
-  _smooth(g,head); _fill(g,C.coat,0);
+  _smooth(g,head); g.lineWidth=2.5; g.strokeStyle=L; g.stroke();
+  gr=g.createLinearGradient(20,0,82,0); gr.addColorStop(0,"#d48f45"); gr.addColorStop(0.55,C.coat); gr.addColorStop(1,"#a35d28"); _smooth(g,head); g.fillStyle=gr; g.fill();
   g.save(); _smooth(g,head); g.clip();
-  g.fillStyle=C.coatH; _ell(g,40,26,15,7,-0.12); g.fill();                                                     // highlight
-  g.fillStyle=C.coatS; _smooth(g,[[64,18],[82,28],[86,58],[78,74],[70,64],[71,46],[66,32]]); g.fill();        // far-side shade
-  g.fillStyle=C.coatS; _smooth(g,[[30,35],[46,33],[56,36],[66,33],[78,30],[78,35],[66,39],[56,41],[46,38],[30,40]]); g.fill(); // heavy brow ridge shade
-  g.fillStyle=C.coatS; _smooth(g,[[19,58],[28,70],[42,79],[30,82],[17,70]]); g.fill();                         // jaw underside
-  g.restore();
+  _blur(g,2.2); g.fillStyle="rgba(122,62,26,0.75)"; _smooth(g,[[66,18],[84,28],[88,58],[80,76],[71,64],[72,46],[67,32]]); g.fill();          // far side russet
+  g.fillStyle="rgba(130,64,26,0.6)"; _smooth(g,[[30,36],[46,34],[56,37],[66,34],[78,31],[78,37],[66,41],[56,43],[46,40],[30,41]]); g.fill(); // under-brow
+  g.fillStyle="rgba(120,58,24,0.65)"; _smooth(g,[[18,60],[28,72],[42,80],[30,84],[16,72]]); g.fill();                                     // jaw
+  _blur(g,2.5); g.fillStyle="rgba(240,184,110,0.7)"; _ell(g,40,25,13,5.5,-0.12); g.fill(); _ell(g,32,47,6,3.6,-0.3); g.fill();                // crown + cheekbone highlight
+  _blur(g,0); g.restore();
   _rimLight(g,()=>_smooth(g,head),19,C.rim);
-  _smooth(g,head); g.lineWidth=1.8; g.strokeStyle=L; g.stroke();                                               // bold silhouette
-  // cheek fluff breaking into the ruff (near side), jaw tufts (far side)
-  [[23,53,13,60,4.2,-2],[23,62,14,70,4,-2],[28,69,21,78,3.6,-1]].forEach(t=>_clump(g,t[0],t[1],t[2],t[3],t[4],t[5],C.cream,1));
-  [[79,52,86,58,2.6,-1],[77,60,84,67,2.6,-1]].forEach(t=>_clump(g,t[0],t[1],t[2],t[3],t[4],t[5],C.coatS,1));
-  // ---- cream: near cheek + wide muzzle pad + square chin; marks above/below the eyes
-  const muz=[[22,53],[30,50],[40,52],[50,56],[56,60],[66,62],[73,64],[74,70],[68,76],[60,79],[50,79],[40,76.5],[30,71],[22,62]];
-  _smooth(g,muz); _fill(g,C.cream,0);
-  g.save(); _smooth(g,muz); g.clip(); g.fillStyle=C.creamS; _smooth(g,[[66,64],[76,64],[76,80],[60,80],[64,72]]); g.fill(); _ell(g,54,80,14,3.4,0); g.fill(); g.restore();
-  _ell(g,60,64,13.5,7,-0.05); _fill(g,C.cream,0);                                                              // wide muzzle pad
-  g.save(); _ell(g,60,64,13.5,7,-0.05); g.clip(); g.fillStyle=C.creamS; _ell(g,70,67,6,6,0); g.fill(); g.restore();
-  _curve(g,[47,62],[45.5,66.5],[48,70],"rgba(90,56,30,0.6)",0.9);                                               // pad edge
-  _curve(g,[46,76],[56,80.5],[66,76],"rgba(26,16,11,0.85)",1.1);                                                // square chin line
-  g.fillStyle=C.cream; _ell(g,42.5,38.2,5.4,1.4,-0.06); g.fill(); _ell(g,71,35.8,3.2,1.1,-0.25); g.fill(); _ell(g,42,49.5,5.6,1.4,0.06); g.fill(); _ell(g,70,47.5,3,1,0); g.fill();
-  // short nose bridge + strong rounded nose
-  _curve(g,[55,43],[57,49],[59,54],"rgba(232,170,104,0.7)",1.6);
-  _stroke(g,[[61,44],[63,53]],"rgba(110,64,30,0.6)",0.9);
-  _smooth(g,[[55,55.5],[68,54.5],[72.5,57],[69.5,61.8],[63.5,63.8],[57.5,61.8]]); _fill(g,"#3a201a",1.4,L);
-  _ell(g,61,56.4,2.4,1,-0.08); g.fillStyle="#7e4c40"; g.fill();
-  _ell(g,60,59.4,1.2,0.8,0); g.fillStyle="#120806"; g.fill(); _ell(g,67.2,58.6,1,0.7,0); g.fill();
-  // ---- hooded, confident eyes + bold brows (far brow cocked)
-  _eyes(g,{L:[43,44],R:[71,42],w:6.6,h:3.5,farScale:0.7,look:-1.3,lidAdd:0.12,ex,blink,iris:3.7,pupil:1.7,lidCol:C.coat});
+  // near cheek fluff breaking the silhouette (cream), far jaw tufts
+  _locks(g,[[[25,56],[13,64],4.2,-1.5,1.5],[[25,64],[14,73],4,-1.5,1.5],[[30,70],[22,80],3.6,-1,1]],C.cream,{sil:1.6});
+  // ---- cream cheek: follows the cheek curve (no hard diagonal), soft inner edge, joins the muzzle + square chin
+  const muz=[[22,58],[25,54.5],[30,53],[36,54],[42,57],[48,60],[56,61],[66,62],[73,64],[74,70],[68,76],[60,79],[50,79],[40,76.5],[30,71],[23,64]];
+  g.save(); _smooth(g,head); g.clip(); _blur(g,0.5); _smooth(g,muz); g.fillStyle=C.cream; g.fill(); _blur(g,0);
+  _blur(g,1.4); g.fillStyle="rgba(214,180,128,0.85)"; _smooth(g,[[66,64],[77,64],[77,82],[60,82],[64,72]]); g.fill(); _ell(g,54,80,14,3,0); g.fill(); _blur(g,0); g.restore();
+  _ell(g,60,64,13.5,7,-0.05); g.fillStyle=C.cream; g.fill();                                                      // wide muzzle pad
+  g.save(); _ell(g,60,64,13.5,7,-0.05); g.clip(); _blur(g,1.2); g.fillStyle="rgba(214,180,128,0.8)"; _ell(g,71,68,6,6,0); g.fill(); _blur(g,0); g.restore();
+  _curve(g,[47,62],[45.5,66.5],[48,70],"rgba(110,64,34,0.5)",0.7);                                                 // pad edge
+  _curve(g,[46,76],[56,80.5],[66,76],C.lineI,0.9);                                                                // chin line
+  g.fillStyle=C.cream; _ell(g,42.5,38.4,5.2,1.3,-0.06); g.fill(); _ell(g,71,36,3,1,-0.25); g.fill(); _ell(g,42,49.6,5.2,1.3,0.06); g.fill(); _ell(g,70,47.6,2.8,0.9,0); g.fill();
+  // ---- nose bridge (gentle highlight) + strong rounded nose
+  g.save(); _blur(g,0.8); _curve(g,[55,43],[57,49],[59,54],"rgba(246,196,128,0.85)",2); _blur(g,0); g.restore();
+  _curve(g,[61.5,44],[62.5,49],[63,53],"rgba(120,62,28,0.45)",0.8);
+  const nose=[[55,55.5],[68,54.5],[72.5,57],[69.5,61.8],[63.5,63.8],[57.5,61.8]];
+  _smooth(g,nose); g.fillStyle="#4a2620"; g.fill(); g.lineWidth=1.3; g.strokeStyle=L; g.stroke();
+  g.save(); _smooth(g,nose); g.clip(); g.fillStyle="#6e3a30"; _ell(g,61,56.2,5,2,-0.08); g.fill(); g.restore();
+  _ell(g,60.5,56.4,1.9,0.8,-0.08); g.fillStyle="rgba(214,150,130,0.9)"; g.fill();
+  _ell(g,60,59.4,1.2,0.8,0); g.fillStyle="#140806"; g.fill(); _ell(g,67.2,58.6,1,0.7,0); g.fill();
+  // ---- 90s toon eyes (hooded but friendly) + bold brows (far one cocked)
+  _eyes7(g,{L:[43,44],R:[71,42],w:6.6,h:3.6,farScale:0.72,look:-1.1,ex,blink,iris:4.3,pupil:1.6});
   const BR={neutral:[[0,0],[0,0]],smirk:[[1,0.5],[-1.8,-2.6]],worried:[[-3,1.4],[-2.6,1.4]],scared:[[-3.2,-3],[-2.8,-3]],angry:[[3.2,-1],[2.8,-1]]}[ex]||[[0,0],[0,0]];
-  const brow=(inner,outer,mid,w)=>{ g.beginPath(); g.moveTo(inner[0],inner[1]); g.quadraticCurveTo(mid[0],mid[1],outer[0],outer[1]); g.quadraticCurveTo(mid[0],mid[1]+w,inner[0],inner[1]+w); g.closePath(); g.fillStyle=L; g.fill(); g.lineWidth=0.5; g.strokeStyle=L; g.stroke(); };
-  brow([53,39+BR[0][0]],[32,37.5+BR[0][1]],[42,34+Math.min(BR[0][0],BR[0][1])],3.6);
-  brow([64,37+BR[1][0]],[78.5,30.5+BR[1][1]],[72,30.5+Math.min(BR[1][0],BR[1][1])],2.8);
+  const brow=(inner,outer,mid,w)=>{ g.beginPath(); g.moveTo(inner[0],inner[1]); g.quadraticCurveTo(mid[0],mid[1],outer[0],outer[1]); g.quadraticCurveTo(mid[0],mid[1]+w,inner[0],inner[1]+w); g.closePath(); g.fillStyle="#2e1a10"; g.fill(); g.lineWidth=0.5; g.strokeStyle="#2e1a10"; g.stroke(); };
+  brow([53,39+BR[0][0]],[32,37.5+BR[0][1]],[42,34+Math.min(BR[0][0],BR[0][1])],3.4);
+  brow([64,37+BR[1][0]],[78.5,30.5+BR[1][1]],[72,30.5+Math.min(BR[1][0],BR[1][1])],2.7);
   // ---- mouth (v5 shapes, moved up for the shorter snout)
   g.save(); g.translate(0,-2.8);
   const N=[63.5,66.6];
@@ -921,12 +1006,12 @@ function drawFelixBust(g,ex,blink,talk,nF){
     _stroke(g,[[56,48],[59.5,47]],"rgba(60,30,20,0.85)",0.9); _stroke(g,[[56.5,51],[60.5,50.4]],"rgba(60,30,20,0.85)",0.9);
   }
   g.restore();
-  // a few faint whisker dots on the pad
-  g.fillStyle="rgba(120,80,50,0.55)"; [[52,61],[50,63.4],[53.5,64.2],[68.5,61],[70.5,63]].forEach(p=>{ _ell(g,p[0],p[1],0.55,0.55,0); g.fill(); });
-  // ---- messy crown tuft: fewer, longer toon clumps swept toward the far side
-  _smooth(g,[[34,25],[42,19],[54,18],[64,20],[68,24],[58,25],[48,26],[40,27]]); _fill(g,C.mane,1);
-  [[36,24,31,12,3.6,2,C.maneS],[42,22,40,6,4,3,C.mane],[49,21,53,4,4.2,3,C.mane],[56,21,65,8,4,3,C.maneS],[62,23,72,15,3.4,3,C.mane]].forEach(t=>_clump(g,t[0],t[1],t[2],t[3],t[4],t[5],t[6],1.1));
-  [[42,21,40,6,2],[49,20,52,3,2],[62,22,72,13,2]].forEach(t=>_clumpHi(g,t[0],t[1],t[2],t[3],t[4],C.maneH));
+  g.fillStyle="rgba(130,84,52,0.5)"; [[52,61],[50,63.4],[53.5,64.2],[68.5,61],[70.5,63]].forEach(p=>{ _ell(g,p[0],p[1],0.5,0.5,0); g.fill(); });
+  // ---- soft messy crown tuft falling over the brow toward the far side
+  const CROWN=[[[36,21],[30,13],3.6,-1.5,2],[[40,20],[58,28],5,-5,1.5],[[47,18],[66,24],4.4,-4.5,1.2],[[53,18],[70,18],3.6,-3.5,1.5],[[44,19],[48,10],3.4,-2,2.2]];
+  _locks(g,CROWN,C.maneU,{sil:1.8,dy:1,grow:1.1});
+  _locks(g,CROWN,C.mane,{inner:0.5});
+  _lockHi(g,CROWN,C.maneH,0.3,0.25);
   if(ex==="scared"){ _smooth(g,[[82,28],[84.8,33.5],[83.2,37.4],[80.5,36],[80.4,32.4]]); _fill(g,"#cfe8ff",0.8,"#4a6a8a"); }
 }
 function drawCubBust(g,ex,blink,talk){
