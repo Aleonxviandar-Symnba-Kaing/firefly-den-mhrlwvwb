@@ -1678,6 +1678,14 @@ function solidTile(tx,ty){
 }
 function solidPx(px,py){ const tx=Math.floor(px/TS), ty=Math.floor(py/TS); return solidTile(tx,ty)||!!blockAt(tx,ty); }
 function boxBlocked(x,y){ const hw=5,hh=4; return solidPx(x-hw,y-hh)||solidPx(x+hw,y-hh)||solidPx(x-hw,y)||solidPx(x+hw,y); }
+// v11.1: spawn points must never sit inside a wall/stone (lantern 3 sits against the halls' south wall)
+function clear4(x,y,d){ d=d||8; return !boxBlocked(x,y)&&!boxBlocked(x+d,y)&&!boxBlocked(x-d,y)&&!boxBlocked(x,y+d)&&!boxBlocked(x,y-d); }
+function freeSpot(x,y){ if(clear4(x,y)) return {x,y};
+  for(const need of [true,false]) for(let r=2;r<=72;r+=2){ for(let a=0;a<16;a++){ const t=a/16*Math.PI*2, nx=Math.round(x+Math.cos(t)*r), ny=Math.round(y+Math.sin(t)*r); if(need?clear4(nx,ny):!boxBlocked(nx,ny)) return {x:nx,y:ny}; } }
+  return {x:4*TS+8,y:5*TS+12}; }
+function lanternSpawn(l){ const c=[[0,1],[-1,0],[1,0],[0,-1],[-1,1],[1,1],[-1,-1],[1,-1]];
+  for(const [dx,dy] of c){ const x=(l.x+dx)*TS+8, y=(l.y+dy)*TS+10; if(clear4(x,y)) return {x,y}; }
+  return freeSpot(l.x*TS+8,(l.y+1)*TS+10); }
 function hushZone(tx,ty){ return (ty>=10&&ty<=20&&tx>=1&&tx<=28)||(tx>=12&&tx<=22&&ty>=1&&ty<=9); }
 function hushOK(tx,ty){ return hushZone(tx,ty) && !solidTile(tx,ty) && tileCh(tx,ty)!=="C" && !blockAt(tx,ty) && !isLanternSafe(tx*TS+8,ty*TS+8,40); }
 function bfs(sx,sy,gx,gy){
@@ -1699,7 +1707,7 @@ function setupWorld(){
   setupWraiths();
   portals=SHARDS.filter(s=>G.shards.indexOf(s.id)>=0).map(s=>({x:s.x,y:s.y,id:s.id}));
   runeProg=G.runeSolved?RUNE_ORDER.slice():[];
-  P.x=G.cp.x; P.y=G.cp.y; P.face=1; grinCharge=true; if(!G.hp||G.hp>maxHp()) G.hp=maxHp();
+  G.cp=freeSpot(G.cp.x,G.cp.y); P.x=G.cp.x; P.y=G.cp.y; P.face=1; P.hidden=false; P.still=0; P.moving=false; grinCharge=true; if(!G.hp||G.hp>maxHp()) G.hp=maxHp();
   placeHushAt(3); HUSH.active=!!G.hushSeen;
 }
 function beginPlay(fresh){
@@ -1720,7 +1728,7 @@ function getCaught(){
     return; }
   state="caught"; caughtT=0; caughtLine=CAUGHT_LINES[Math.floor(Math.random()*CAUGHT_LINES.length)]; sfx.caught();
 }
-function respawn(){ playTrack("cave"); P.x=G.cp.x; P.y=G.cp.y; G.light=Math.max(G.light,70); G.hp=maxHp(); placeHushAt(0); HUSH.stun=2; state="play"; grinCharge=true; }
+function respawn(){ playTrack("cave"); G.cp=freeSpot(G.cp.x,G.cp.y); P.x=G.cp.x; P.y=G.cp.y; P.hidden=false; P.still=0; P.moving=false; P.pushT=0; G.light=Math.max(G.light,70); G.hp=maxHp(); placeHushAt(0); HUSH.stun=2; state="play"; grinCharge=true; }
 function nearInteract(){
   const fx=P.x, fy=P.y-4; let best=null, bd=22;
   const consider=(x,y,kind,data)=>{ const d=Math.hypot(fx-x,fy-y); if(d<bd){ bd=d; best={kind,data,x,y}; } };
@@ -1747,7 +1755,7 @@ function interact(it){
     if(G.attr==="feather") lines.push(F("THE FEATHERS ARE WHISPERING... THE CRACK IN THE NOOK'S EAST WALL ISN'T A WALL."));
     runScript(lines); return; }
   if(it.kind==="lantern"){
-    const l=LANTERNS[it.data]; G.light=100; G.hp=maxHp(); G.cp={x:l.x*TS+8,y:(l.y+1)*TS+10}; grinCharge=true; saveGame(); sfx.jar();
+    const l=LANTERNS[it.data]; G.light=100; G.hp=maxHp(); G.cp=lanternSpawn(l); grinCharge=true; saveGame(); sfx.jar();
     showToast("THE LANTERN REMEMBERS YOU. (SAVED)"); return; }
   if(it.kind==="rune"){
     if(G.runeSolved){ showToast("THE RUNE HUMS, ALREADY AWAKE."); return; }
@@ -2631,7 +2639,7 @@ fit(); cv.focus(); playTrack("void");
 window.__vc={art:{portraitBg,portraitDraw,felixR,felixL,cubSpr,bustDraw,PORTRAIT_EX,BUST_EX,castDraw,castReady,CAST,felixPixReady,miniDraw,miniKey,miniReady,MINI}, get state(){return state;}, get G(){return G;}, P, HUSH, get DLG(){return DLG;}, get MENU(){return MENU;}, get blocks(){return blocks;}, runeProg:()=>runeProg,
   toggleFullscreen, isFull:()=>!!fsElement()||maxi, get BT(){return BT;}, get INV(){return INV;}, get JOURNAL(){return JOURNAL;}, get wraiths(){return wraiths;}, get items(){return jars;},
   invCap, maxHp, echoLines:()=>echoLines(), setCombat, startBattle:(i)=>startBattle(wraiths[i||0]), get combatPref(){return combatPref;}, runScript:(s)=>runScript(s), clearDlg:()=>{SCR=null;DLG=null;},
-  v11:{mouthFrame, groundAt, todMix, setTod:(s)=>{G.tod=s;}, get hushP(){return hushP;}, get amb(){return {lvl:AMB.lvl,duck:AMB.duck,vol:ambVol,bus:!!AMB.bus};}, get wx(){return wxLvl;}, setAmbVol, get areaName(){return areaName;}, MOUTH}};
+  v11:{mouthFrame, groundAt, todMix, setTod:(s)=>{G.tod=s;}, get hushP(){return hushP;}, get amb(){return {lvl:AMB.lvl,duck:AMB.duck,vol:ambVol,bus:!!AMB.bus};}, get wx(){return wxLvl;}, setAmbVol, get areaName(){return areaName;}, MOUTH}, LANTERNS, getCaught:()=>getCaught(), respawn:()=>respawn(), newGame:()=>newGame(), toTitle:()=>toTitle(), saveGame:()=>saveGame(), get caughtT(){return caughtT;}, boxBlocked:(x,y)=>boxBlocked(x,y)};
 requestAnimationFrame(frame);
 })();
 </script>
