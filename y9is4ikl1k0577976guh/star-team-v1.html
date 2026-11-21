@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Star Team Cypher Engine</title>
+<style>
+body{margin:0;background:#0b0a0f;color:#b8e0c8;font-family:'Courier New',monospace;min-height:100vh}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 2px,transparent 2px 4px);animation:tape 3s steps(6) infinite}
+@keyframes tape{0%,90%{opacity:.6}93%{opacity:1;transform:translateY(2px)}96%{opacity:.4}}
+.wrap{max-width:900px;margin:auto;padding:12px}
+h1{font-size:clamp(16px,4vw,24px);color:#e8c27a;text-shadow:0 0 6px #4fa3ff;letter-spacing:2px;margin:6px 0}
+h1 span{color:#c4213a}
+#stage{position:relative;border:2px solid #2e5a32;box-shadow:0 0 14px #1d3a20 inset,0 0 10px #4fa3ff33;background:#120f16}
+canvas{display:block;width:100%;image-rendering:pixelated;transition:transform .4s}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:13px}
+button{background:#1c2a1e;color:#e8c27a;border:1px solid #4a7d4e;padding:6px 12px;font:inherit;cursor:pointer;min-height:36px}
+button:hover{border-color:#4fa3ff}
+#log{height:170px;overflow-y:auto;background:#07060a;border:1px solid #3a1a22;padding:8px;font-size:13px;color:#7fe0a0}
+#log div{margin:2px 0}#log .r{color:#ff5a6e}
+#in{width:100%;box-sizing:border-box;background:#07060a;color:#e8c27a;border:1px solid #4a7d4e;padding:10px;font:inherit;font-size:16px;margin-top:6px}
+.flick{animation:fr .5s}@keyframes fr{0%,40%,80%{background:#4a0a14}20%,60%,100%{background:#07060a}}
+.spacer{height:70vh;display:flex;align-items:flex-end;justify-content:center;color:#2a3a2c;font-size:12px}
+#bleed{display:none;white-space:pre-wrap;color:#c4213a;border-top:1px dashed #5a1a24;padding:16px;font-size:12px;opacity:.85}
+</style></head><body><div class="wrap">
+<h1>✦ STAR TEAM <span>CYPHER</span> ENGINE ✦</h1>
+<div id="stage"><canvas id="cv"></canvas></div>
+<div class="bar"><button id="mute" aria-pressed="false">🔊 Mute</button>
+<label for="vol">Volume <input id="vol" type="range" min="0" max="100" value="50"></label>
+<span id="codes" style="color:#4fa3ff"></span></div>
+<div id="log" aria-live="polite"></div>
+<input id="in" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type here and press Enter…" aria-label="terminal input">
+<div class="spacer">↓ the tape keeps rolling ↓</div>
+<div id="bleed"></div><div style="height:30px"></div></div>
+<script>
+"use strict";
+class AudioSymphony{
+ constructor(){this.ctx=null;this.master=null;this.vol=0.5;this.muted=false;this.timers=[];this.codes=new Set();}
+ init(){try{const AC=window.AudioContext||window.webkitAudioContext;this.ctx=new AC();
+  this.comp=this.ctx.createDynamicsCompressor();this.comp.threshold.value=-18;
+  this.master=this.ctx.createGain();this.master.connect(this.comp);this.comp.connect(this.ctx.destination);
+  this.applyVolume();this.noiseBuf=this.makeNoise();this.playEerieHarmony();}catch(e){console.error("Audio init failed",e);}}
+ applyVolume(){if(!this.master)return;const g=this.muted?0:0.35*this.vol;this.master.gain.setTargetAtTime(g,this.ctx.currentTime,0.05);}
+ setVolume(v){this.vol=v;this.applyVolume();} setMuted(m){this.muted=m;this.applyVolume();}
+ makeNoise(){const b=this.ctx.createBuffer(1,this.ctx.sampleRate*2,this.ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return b;}
+ tone(f,t,dur,type="sine",g=0.15,opt={}){const c=this.ctx,o=c.createOscillator(),a=c.createGain();o.type=type;o.frequency.setValueAtTime(f,t);
+  if(opt.to)o.frequency.exponentialRampToValueAtTime(opt.to,t+dur);
+  if(opt.wob){const l=c.createOscillator(),lg=c.createGain();l.frequency.value=opt.wob;lg.gain.value=f*0.03;l.connect(lg);lg.connect(o.frequency);l.start(t);l.stop(t+dur);}
+  a.gain.setValueAtTime(0,t);a.gain.linearRampToValueAtTime(g,t+(opt.att||0.05));a.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  let n=a;if(opt.lp){const f2=c.createBiquadFilter();f2.type="lowpass";f2.frequency.value=opt.lp;a.connect(f2);n=f2;}
+  o.connect(a);n.connect(this.master);o.start(t);o.stop(t+dur+0.05);}
+ noise(t,dur,g=0.1,freq=2000,q=1,type="bandpass"){const c=this.ctx,s=c.createBufferSource(),f=c.createBiquadFilter(),a=c.createGain();s.buffer=this.noiseBuf;f.type=type;f.frequency.value=freq;f.Q.value=q;
+  a.gain.setValueAtTime(g,t);a.gain.exponentialRampToValueAtTime(0.0001,t+dur);s.connect(f);f.connect(a);a.connect(this.master);s.start(t,Math.random());s.stop(t+dur+0.05);}
+ loop(fn,ms){fn();this.timers.push(setInterval(()=>{if(this.ctx&&this.ctx.state!=="closed")fn();},ms));}
+ playEerieHarmony(){// microtonal flute/harp phrase that cuts off before resolving
+  const base=293.66,steps=[0,1.5,3.5,5,6.5,8.5,10];// quarter-tone-ish cents/100
+  this.loop(()=>{const t=this.ctx.currentTime+0.05;for(let i=0;i<6;i++){const f=base*Math.pow(2,steps[(i*3)%7]/12);
+   this.tone(f,t+i*0.45,1.2,"triangle",0.07,{wob:5,lp:2200});this.tone(f*2.01,t+i*0.45,0.6,"sine",0.03);}
+   this.tone(base*Math.pow(2,11.5/12),t+2.7,0.18,"triangle",0.06);/* leading tone, abruptly severed */},4200);}
+ applyStackableFilters(codes){if(!this.ctx)return;for(const c of codes){if(this.codes.has(c))continue;this.codes.add(c);
+  if(c==="kougra trout")this.loop(()=>{const t=this.ctx.currentTime;this.tone(46,t,1.8,"sawtooth",0.12,{lp:180,wob:22,att:0.3});
+   [0,0.9,1.35].forEach(d=>this.tone(110,t+d,0.5,"sine",0.25,{to:38,att:0.005}));},2400);
+  if(c==="lions")this.loop(()=>{const t=this.ctx.currentTime;this.tone(380,t,2.2,"sine",0.06,{to:720,wob:6,att:0.6});
+   this.tone(700,t+1.2,1.6,"sine",0.04,{to:330,wob:7});this.noise(t+0.5,0.18,0.08,3500,0.7);this.noise(t+0.8,0.25,0.06,1800,0.5);this.noise(t+2,0.12,0.12,900,1);},3600);
+  if(c==="niols")this.loop(()=>{const t=this.ctx.currentTime;this.noise(t,2.9,0.035,1200,0.3);
+   this.tone(196*(0.95+Math.random()*0.1),t,2.5,"triangle",0.05,{wob:0.8+Math.random()*2,lp:900});},2800);
+  if(c==="simba")this.loop(()=>{const t=this.ctx.currentTime;for(let i=0;i<9;i++)this.tone(520+Math.random()*260,t+i*0.09,0.07,"square",0.035,{to:300,lp:2500});},2000);}}
+}
+class CanvasRenderer{
+ constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext("2d");this.mode="90s";this.silhouetteOpacity=0.12;this.codes=new Set();this.t=0;this.bled=false;this.flick=0;}
+ init(){this.resize();addEventListener("resize",()=>this.resize());
+  const chk=()=>{if(!this.bled&&innerHeight+scrollY>=document.body.offsetHeight-5)this.revealSubTerminalBleed();};addEventListener("scroll",chk,{passive:true});
+  const loop=()=>{this.t++;this.render();requestAnimationFrame(loop);};requestAnimationFrame(loop);}
+ resize(){const w=this.canvas.parentElement.clientWidth;this.W=320;this.H=Math.round(320*Math.min(0.75,Math.max(0.5,450/w)));this.canvas.width=this.W;this.canvas.height=this.H;}
+ px(x,y,w,h,c){this.ctx.fillStyle=c;this.ctx.fillRect(x|0,y|0,w|0,h|0);}
+ render(){const c=this.ctx,W=this.W,H=this.H,t=this.t;
+  this.px(0,0,W,H,"#120f16");for(let i=0;i<40;i++)this.px((i*53)%W,(i*29)%(H/2),1,1,"#3a3550");
+  // stone floor
+  this.px(0,H-40,W,40,"#1b1820");for(let x=0;x<W;x+=16)this.px(x+((x/16)%2)*8,H-40,1,40,"#26222c");
+  // vines
+  for(const vx of [6,W-14]){for(let y=0;y<H-40;y+=4){const o=Math.sin(y*0.15+vx)*3;this.px(vx+o,y,3,4,"#2f6b34");if(y%14==0)this.px(vx+o+(vx<50?3:-4),y,4,3,"#4c9a4f");}}
+  // runes
+  const runes="ᚠᚢᚦᚨᚱᚲᚷᚹ";c.font="10px monospace";for(let i=0;i<8;i++){const a=0.4+0.4*Math.sin(t*0.05+i);c.fillStyle=`rgba(79,163,255,${a})`;c.shadowColor="#4fa3ff";c.shadowBlur=6;c.fillText(runes[i],30+i*(W-60)/7,18);}c.shadowBlur=0;
+  this.drawAnthroSilhouette();
+  // candles
+  for(const [cx,cy] of [[40,H-52],[W-48,H-52],[W/2-70,H-46],[W/2+64,H-46]]){this.px(cx,cy,6,12,"#d8cfb0");const f=Math.sin(t*0.3+cx)*1.5;
+   this.px(cx+1+f*0.3,cy-6,4,6,"#ffb347");this.px(cx+2,cy-4,2,3,"#fff2a0");c.fillStyle="rgba(255,170,60,0.07)";c.beginPath();c.arc(cx+3,cy-3,18,0,7);c.fill();}
+  this.drawFlickeringTemptation();
+  if(this.mode==="SIMBA_CRASH")this.executeSimbaRendering();
+  // tape tracking band
+  const by=(t*2)%(H+30)-15;c.fillStyle="rgba(255,255,255,0.05)";c.fillRect(0,by,W,6);
+  if(Math.random()<0.02)this.px(0,Math.random()*H,W,2,"rgba(196,33,58,0.3)");
+  if(this.flick>0){this.flick--;c.fillStyle=`rgba(139,0,0,${this.flick%2?0.45:0.15})`;c.fillRect(0,0,W,H);}}
+ drawAnthroSilhouette(){const c=this.ctx,W=this.W,H=this.H,t=this.t,cx=W/2,lift=this.codes.has("niols")?18:0,cy=H-60-lift,b=Math.sin(t*0.04)*1.5;
+  let a=this.silhouetteOpacity*(0.85+0.15*Math.sin(t*0.13));if(Math.random()<0.03)a*=0.3;c.save();c.globalAlpha=Math.min(1,a);
+  // shoulders/body
+  this.px(cx-34,cy-10+b,68,40+lift,"#1a1116");this.px(cx-26,cy-20+b,52,14,"#1a1116");
+  // mane (red, jagged)
+  for(let i=0;i<22;i++){const ang=i/22*Math.PI*2,r=34+(i%2?6:0)+Math.sin(t*0.05+i)*2;this.px(cx+Math.cos(ang)*r-5,cy-52+b+Math.sin(ang)*r-5,11,11,i%3?"#8b1a22":"#b5262f");}
+  c.fillStyle="#7a141c";c.beginPath();c.arc(cx,cy-52+b,32,0,7);c.fill();
+  // face
+  this.px(cx-18,cy-70+b,36,36,"#2b1d1c");this.px(cx-14,cy-38+b,28,8,"#2b1d1c");
+  // ears (kougra) 
+  this.px(cx-30,cy-92+b,10,14,"#2b1d1c");this.px(cx+20,cy-92+b,10,14,"#2b1d1c");this.px(cx-27,cy-88+b,4,7,"#5a1a22");this.px(cx+23,cy-88+b,4,7,"#5a1a22");
+  // kougra stripes
+  for(const s of [-12,-4,4]){this.px(cx+s,cy-70+b,3,7,"#120a0a");}this.px(cx-18,cy-56+b,6,2,"#120a0a");this.px(cx+12,cy-56+b,6,2,"#120a0a");
+  // eyes amber glow
+  const blink=(t%240)<5;c.shadowColor="#ffb000";c.shadowBlur=8;
+  if(!blink){this.px(cx-12,cy-58+b,7,4,"#ffb000");this.px(cx+5,cy-58+b,7,4,"#ffb000");this.px(cx-9,cy-58+b,2,4,"#1a0a00");this.px(cx+8,cy-58+b,2,4,"#1a0a00");}
+  c.shadowBlur=0;
+  // muzzle & nose
+  this.px(cx-8,cy-48+b,16,10,"#3a2a26");this.px(cx-3,cy-49+b,6,3,"#140808");this.px(cx-1,cy-42+b,2,3,"#140808");
+  // fangs (subtle)
+  this.px(cx-5,cy-39+b,2,3,"#d8cfb0");this.px(cx+3,cy-39+b,2,3,"#d8cfb0");
+  c.restore();}
+ drawFlickeringTemptation(){if(this.mode!=="SIMBA_CRASH"&&Math.sin(this.t*0.02)>0.6){this.ctx.fillStyle="rgba(255,255,255,0.12)";this.ctx.font="8px monospace";this.ctx.fillText("niols...",22,this.H-8);}}
+ renderBaseLayout(){this.render();}
+ flickerMatrix(){this.flick=10;}
+ updateVisualState(codes){this.codes=codes;
+  if(codes.has("kougra trout"))this.silhouetteOpacity=Math.max(this.silhouetteOpacity,0.3);
+  if(codes.has("lions"))this.silhouetteOpacity=Math.max(this.silhouetteOpacity,0.45);
+  if(codes.has("niols")){this.canvas.style.transform="scaleX(-1)";this.silhouetteOpacity=Math.max(this.silhouetteOpacity,0.7);}
+  if(codes.has("simba")){this.mode="SIMBA_CRASH";this.silhouetteOpacity=1;}}
+ executeSimbaRendering(){const c=this.ctx,W=this.W,H=this.H;this.canvas.style.transform="scaleX(1)";
+  c.strokeStyle="rgba(220,20,60,0.85)";c.lineWidth=2;c.strokeRect(4,4,W-8,H-8);
+  c.fillStyle="rgba(0,0,0,0.55)";c.fillRect(8,24,W-16,22);c.fillStyle=Math.random()<0.1?"#c4213a":"#fff";c.font="bold 11px 'Courier New',monospace";c.textAlign="center";
+  c.fillText("“Warm Regards from the Star Team!”",W/2+(Math.random()<0.05?3:0),39);c.textAlign="left";
+  // peace sign paw
+  const x=this.W/2+30,y=this.H-90;this.px(x,y,8,10,"#2b1d1c");this.px(x,y-10,3,10,"#2b1d1c");this.px(x+5,y-10,3,10,"#2b1d1c");}
+ revealSubTerminalBleed(){this.bled=true;const el=document.getElementById("bleed");el.style.display="block";
+  el.textContent="── RECOVERED OPERATIONAL LOG · REEL 7 · 1969 ──\n\n04:12  gate sensor reports 3 shapes. none human.\n04:13  operator wrote the phrase backwards. the terminal accepted it.\n04:19  candles lit on their own. runes on the wall glowed blue.\n04:20  the hybrid stood at the threshold. amber eyes. it did not enter.\n04:21  it was guarding, not hunting.\n\nTHE CYPHER IS INFINITE. HUMANITY SEES THE CYCLE. ANIMALS SECURE THE GATE.\n\n[end of buffer — tape continues blank]";
+  console.log("📜 CRITICAL LEAK: 1969 operational log buffer revealed.");}
+}
+class GameManager{
+ constructor(canvasId,inputId,logId){this.audio=new AudioSymphony();this.view=new CanvasRenderer(canvasId);this.inputId=inputId;this.logId=logId;
+  this.activeCodes=new Set();this.isBooted=false;this.currentDeck=3;this.validCheatCodes=["kougra trout","lions","niols","simba"];}
+ init(){this.input=document.getElementById(this.inputId);this.out=document.getElementById(this.logId);this.view.init();
+  this.input.addEventListener("keydown",e=>{if(e.key==="Enter"){this.handleInput(this.input.value);this.input.value="";}});
+  const mute=document.getElementById("mute"),vol=document.getElementById("vol");
+  mute.onclick=()=>{const m=!this.audio.muted;this.audio.setMuted(m);mute.textContent=m?"🔇 Unmute":"🔊 Mute";mute.setAttribute("aria-pressed",m);};
+  vol.oninput=()=>this.audio.setVolume(vol.value/100);this.audio.vol=vol.value/100;
+  this.log("SYSTEM INITIALIZED. CURRENT PARADIGM: DECK 3.");this.log('Enter "type play the game" to bypass structural secure directive.');}
+ handleInput(raw){const input=raw.toLowerCase().trim();if(!input)return;
+  if(!this.isBooted){if(input==="type play the game"){this.isBooted=true;this.audio.init();
+    this.log("🎯 Access granted. Cypher engine running non-sequentially based on Ouroboros loops.");
+    this.log("Hint: The terminal responds to ancestral frequencies. Enter cheat strings blindly.");}
+   else{this.log("❌ ACCESS DENIED: SECURE DIRECTIVE MISMATCH.",true);this.redFlicker();}return;}
+  if(this.validCheatCodes.includes(input)){if(this.activeCodes.has(input)){this.log(`⚠️ Code [${input}] is already stacked in memory.`);return;}
+   this.activeCodes.add(input);this.log(`🔮 Stacked code: [${input}] successfully integrated into core loop.`);this.syncModules();}
+  else{this.log(`🎲 Input "${raw}" parsed as non-sequential letter hypothesis vector.`,true);this.redFlicker();}}
+ redFlicker(){this.view.flickerMatrix();this.out.classList.remove("flick");void this.out.offsetWidth;this.out.classList.add("flick");}
+ syncModules(){this.audio.applyStackableFilters(this.activeCodes);this.view.updateVisualState(this.activeCodes);
+  document.getElementById("codes").textContent="stack: "+[...this.activeCodes].join(" + ");
+  if(this.activeCodes.has("simba")&&!this.simbaDone){this.simbaDone=true;this.log("🚨 COMPLETE MODULE OVERRIDE INITIATED BY DEVELOPER TERMINAL.");
+   this.log("“Warm Regards from the Star Team!”");this.log("THE CYPHER IS INFINITE. HUMANITY SEES THE CYCLE. ANIMALS SECURE THE GATE. - (1969)");}}
+ log(m,red){const d=document.createElement("div");d.textContent="> "+m;if(red)d.className="r";this.out.appendChild(d);this.out.scrollTop=this.out.scrollHeight;console.log("[StarTeamEngine] "+m);}
+}
+new GameManager("cv","in","log").init();
+</script></body></html>
