@@ -201,7 +201,9 @@ const A={ctx:null,kind:null,step:0,nt:0,wrong:0,amb:{},
   a.gain.setValueAtTime(0.0001,t); a.gain.linearRampToValueAtTime(Math.min(g,0.12),t+(o.att||0.004)); a.gain.exponentialRampToValueAtTime(0.0001,t+dur); s.connect(f); f.connect(a);
   let n=a; if(o.pan&&c.createStereoPanner){ const p=c.createStereoPanner(); p.pan.value=clamp(o.pan,-1,1); a.connect(p); n=p; } n.connect(bus||this.fx); s.start(t,Math.random()); s.stop(t+dur+0.05); },
  /* talk blips: each character has a pitch & timbre */
- blip(who){ const v=VOICES[who]||VOICES.sign; const t=this.now(); const f=v.f*Math.pow(2,(Math.random()*2-1)*v.sp/12); this.tone(f,t,0.06,v.w,0.035,{lp:v.lp,att:0.004}); if(v.f2) this.tone(f*v.f2,t,0.05,"sine",0.015); },
+ /* cub talk: a tiny rising-falling mew per syllable instead of a beep (soft, lowpassed, vibrato) */
+ mewlet(){ const t=this.now(), f=640+Math.random()*190, up=1.12+Math.random()*0.14; this.tone(f,t,0.05,"triangle",0.028,{to:f*up,lp:2400,att:0.008,wob:11,wd:0.02}); this.tone(f*up,t+0.045,0.07,"triangle",0.022,{to:f*0.9,lp:2200,att:0.006}); },
+ blip(who){ if(who==="cub"||(who==="leon"&&ERA==="cub")){ this.mewlet(); return; } const v=VOICES[who]||VOICES.sign; const t=this.now(); const f=v.f*Math.pow(2,(Math.random()*2-1)*v.sp/12); this.tone(f,t,0.06,v.w,0.035,{lp:v.lp,att:0.004}); if(v.f2) this.tone(f*v.f2,t,0.05,"sine",0.015); },
  /* music */
  play(kind){ if(this.kind===kind) return; this.kind=kind; this.step=0; this.nt=this.now()+0.1; if(this.mus&&this.ctx){ this.mus.gain.cancelScheduledValues(this.now()); this.mus.gain.setTargetAtTime(1,this.now(),0.3); } },
  stop(){ this.kind=null; },
@@ -280,6 +282,15 @@ const A={ctx:null,kind:null,step:0,nt:0,wrong:0,amb:{},
   pounce(){ const t=A.now(); A.noise(t,0.18,0.03,1200,1.5); A.tone(220,t,0.16,"triangle",0.025,{to:110}); },
   dash(){ const t=A.now(); A.noise(t,0.14,0.03,2600,2); A.tone(520,t,0.1,"square",0.018,{to:880,lp:3000}); },
   flip(){ const t=A.now(); A.tone(523,t,0.08,"square",0.022,{to:1046,lp:3500}); A.tone(784,t+0.07,0.12,"square",0.018,{to:1318,lp:3500}); },
+  /* ---- cub vocal synths (animal-like, never words) ---- */
+  mew(){ const t=A.now(); A.tone(700,t,0.14,"triangle",0.04,{to:1060,lp:2800,att:0.02,wob:9,wd:0.025}); A.tone(1060,t+0.13,0.24,"triangle",0.034,{to:740,lp:2400,att:0.01,wob:8,wd:0.03}); A.noise(t,0.12,0.006,2600,1.5,"bandpass",null,{att:0.02}); },
+  whimper(){ const t=A.now(); A.tone(900,t,0.5,"sine",0.026,{to:600,lp:1800,att:0.06,wob:7,wd:0.03}); A.tone(820,t+0.62,0.6,"sine",0.02,{to:520,lp:1600,att:0.08,wob:6,wd:0.035}); A.noise(t+0.55,0.1,0.005,1500,1.2,"bandpass",null,{att:0.03}); },
+  chuff(){ const t=A.now(); A.noise(t,0.09,0.045,650,1.1,"bandpass",null,{att:0.008}); A.tone(170,t,0.09,"triangle",0.014,{to:120,lp:900}); A.noise(t+0.15,0.07,0.028,720,1.1,"bandpass",null,{att:0.008}); },
+  cubRoar(){ const t=A.now(); A.tone(250,t,0.28,"sawtooth",0.026,{to:330,lp:1300,att:0.03,wob:11,wd:0.035}); A.tone(330,t+0.25,0.4,"sawtooth",0.024,{to:205,lp:1100,att:0.02,wob:14,wd:0.05}); A.noise(t,0.6,0.02,900,0.8,"bandpass",null,{att:0.05}); A.tone(860,t+0.68,0.12,"triangle",0.016,{to:700,lp:2200}); },
+  /* storm: low rumble always; the sudden crack only when AUDIO SCARES is on (caller decides) */
+  rumble(g){ const t=A.now(); g=g||1; A.noise(t,3.2,0.08*g,110,0.7,"lowpass",null,{att:0.55}); A.tone(46,t,3,"sine",0.06*g,{to:34,att:0.6}); },
+  crack(){ const t=A.now(); A.noise(t,0.28,0.07,2400,0.6,"bandpass",null,{att:0.004}); A.noise(t+0.05,0.5,0.05,500,0.7,"bandpass",null,{att:0.01}); },
+  heart(g){ const t=A.now(); g=g||1; A.tone(60,t,0.13,"sine",0.07*g,{to:42,att:0.006}); A.tone(54,t+0.17,0.12,"sine",0.05*g,{to:40,att:0.006}); },
   sniff(){ const t=A.now(); A.noise(t,0.07,0.02,3200,3); A.noise(t+0.12,0.07,0.02,3400,3); },
   chime(){ const t=A.now(); [84,88,91].forEach((n,i)=>A.tone(mid(n),t+i*0.08,1,"sine",0.03,{rv:1})); }
  }
@@ -1331,7 +1342,120 @@ const PR_LOG={x:232,w:30,y:PR_GY-13};   // a fallen branch: only a cub fits unde
 function prologueEnter(replay){ MODE="prologue"; setBodyMode("game"); closeMenu(); READ=null; DLG.q=[]; DLG.cur=null; SS.on=false;
   Object.assign(PR,{t:0,scene:"den",x:64,y:PR_GY,vx:0,vy:0,on:true,f:1,ph:0,cam:0,ff:{on:false,x:312,y:112,a:0},vNext:3.2,vOn:true,cap:"",capT:0,
     endT:0,fade:0,card:0,skip:!!S.flags.prologue,replay:!!replay,idle:0,moved:false,door:0,act:0,quietT:0,hint:0,mel:0,sniffT:0,sniffs:0,duck:0,ducked:false});
-  A.stop(); A.wrong=0; A.ambSet({wind:0.18}); A.init(); }
+  PR.nar=(!replay&&!S.flags.prologue)?narNew():null;
+  A.stop(); A.wrong=0; A.ambSet(PR.nar?{rain:0.35,wind:0.3}:{wind:0.18}); A.init(); }
+/* ===== OPENING NARRATION — "SOME NIGHTS" (new game only, before the den) =====
+   Somber grief + a night terror, non-graphic: nobody is shown hurt, the loss is only implied ("where the warm used to be").
+   Slow typed narrator lines over a stormy night; a small cub alone; a lightning-lit "figure" that is only the old acacia;
+   a heartbeat that rises then calms; ends on a firefly + a far-off hum, then the den gameplay. B / ESC skips at any time.
+   Toggles: REDUCE FLASHING -> lightning is a soft dim + faint rim (no white flash, no vignette pulse);
+   REDUCE MOTION -> shadows hold still, no shiver, slower/sparser rain; AUDIO SCARES off -> rumble only, no sudden crack;
+   all sound through the capped master bus with soft attacks; mute silences everything. */
+const PR_NAR=[
+  {t:"Some nights, the dark is very big.",f:0.2},
+  {t:"And a cub is very small.",f:0.25,ev:"mew"},
+  {t:"The rain comes down like it has somewhere to be.",f:0.3,ev:"rain"},
+  {t:"He curls up in the hollow where the warm used to be.",f:0.35,ev:"cold"},
+  {t:"It is cold there now.",f:0.4,ev:"whimper"},
+  {t:"Thunder walks across the hills.",f:0.5,ev:"thunder"},
+  {t:"He tells himself it is only the sky clearing its throat.",f:0.5,ev:"heart1"},
+  {t:"Then the lightning shows him something tall.",f:0.85,ev:"light"},
+  {t:"Something with long arms, standing very still.",f:1,ev:"heart2"},
+  {t:"...",f:1,ev:"light2"},
+  {t:"It is only the old acacia.",f:0.7,ev:"chuff"},
+  {t:"It has always been only the old acacia.",f:0.55},
+  {t:"He tries a roar, to be sure.",f:0.5,ev:"roar"},
+  {t:"It comes out small. It comes out shaking.",f:0.45},
+  {t:"Breathe in. Breathe out. Someone used to say that.",f:0.3,ev:"calm"},
+  {t:"Then, a small light. Patient. In no hurry at all.",f:0.15,ev:"firefly"},
+  {t:"And far off, so soft it might be a dream, someone hums the old song.",f:0.05,ev:"hum"},
+  {t:"Leon wakes.",f:0,ev:"wake"}];
+const NAR_CPS=13, NAR_TREE=246, NAR_CUB=112;
+function narNew(){ return {t:0,i:-1,ch:0,hold:2.4,fear:0.15,ft:-1,fk:0,tree:0,bpm:84,bt:84,hv:0,hvt:0,hnext:0.5,hp:0,warm:1,warmT:1,ff:{on:false,a:0,x:338,y:96},thAt:-1,roarT:0,end:0,hummed:0}; }
+function narEv(n,ev){ const js=!!S.js;
+  if(ev==="mew") A.sfx.mew();
+  else if(ev==="rain") A.ambSet({rain:0.9,wind:0.35});
+  else if(ev==="cold") n.warmT=0;
+  else if(ev==="whimper") A.sfx.whimper();
+  else if(ev==="thunder"){ if(js) A.sfx.crack(); A.sfx.rumble(1); }
+  else if(ev==="heart1"){ n.bt=92; n.hvt=0.55; }
+  else if(ev==="light"||ev==="light2"){ n.ft=0; n.fk++; n.tree=1; n.thAt=ev==="light"?1.1:0.8; if(ev==="light2"){ n.bt=124; } }
+  else if(ev==="heart2"){ n.bt=118; n.hvt=1; }
+  else if(ev==="chuff"){ A.sfx.chuff(); n.bt=104; }
+  else if(ev==="roar"){ A.sfx.cubRoar(); n.roarT=1.4; }
+  else if(ev==="calm"){ n.bt=64; n.hvt=0.6; A.ambSet({rain:0.5,wind:0.25}); }
+  else if(ev==="firefly"){ n.ff.on=true; n.hvt=0.25; n.bt=60; if(A.ctx) A.tone(mid(84),A.now(),1.6,"sine",0.018,{rv:1,att:0.3}); }
+  else if(ev==="hum"){ n.hvt=0; narHum(); A.ambSet({rain:0.25,wind:0.2}); }
+  else if(ev==="wake"){ n.end=0.01; } }
+/* a distant warm voice humming the lullaby: soft, lowpassed, slow attack, lots of room */
+function narHum(){ if(!A.ctx) return; const n0=A.now()+0.1, M=[72,76,74,72,69,72];
+  M.forEach((m,i)=>{ const f=mid(m-12); A.tone(f,n0+i*0.62,1.2,"triangle",0.016,{lp:620,rv:1,att:0.22,wob:4.5,wd:0.008}); A.tone(f*2,n0+i*0.62,1.0,"sine",0.006,{lp:900,rv:1,att:0.3}); }); }
+function narEnd(){ const P=PR; P.nar=null; P.t=0; A.ambSet({wind:0.18}); }
+function narUpdate(dt){ const P=PR, n=P.nar; n.t+=dt; P.t+=dt;
+  if(backP()){ narEnd(); return; }
+  if(n.end>0){ n.end+=dt; if(n.end>2.2) narEnd(); return; }
+  const ok=okP();
+  if(n.i<0){ n.hold-=dt; if(n.hold<=0||ok){ n.i=0; n.ch=0; narEv(n,PR_NAR[0].ev); } }
+  else { const L=PR_NAR[n.i], len=L.t.length;
+    if(n.ch<len){ n.ch=Math.min(len,n.ch+dt*NAR_CPS); if(ok) n.ch=len; if(n.ch>=len) n.hold=L.t==="..."?1.6:1.5+len*0.035; }
+    else { n.hold-=dt; if(n.hold<=0||ok){ if(n.i<PR_NAR.length-1){ n.i++; n.ch=0; narEv(n,PR_NAR[n.i].ev); } } } }
+  const tf=n.i<0?0.15:PR_NAR[n.i].f; n.fear=lerp(n.fear,tf,Math.min(1,dt*0.8));
+  n.warm=lerp(n.warm,n.warmT,Math.min(1,dt*0.25));
+  if(n.ft>=0){ n.ft+=dt; if(n.ft>1.2) n.tree=Math.max(0.22,n.tree-dt*0.45); }
+  if(n.thAt>0){ n.thAt-=dt; if(n.thAt<=0){ if(S.js) A.sfx.crack(); A.sfx.rumble(0.9); } }
+  if(n.roarT>0) n.roarT-=dt;
+  // heartbeat: tempo + level glide (no sudden jumps)
+  n.bpm=lerp(n.bpm,n.bt,Math.min(1,dt*0.35)); n.hv=lerp(n.hv,n.hvt,Math.min(1,dt*0.6)); n.hp=Math.max(0,n.hp-dt*3);
+  if(n.hv>0.04){ n.hnext-=dt; if(n.hnext<=0){ A.sfx.heart(n.hv); n.hp=1; n.hnext=60/n.bpm; } }
+  const F=n.ff; if(F.on){ F.a=Math.min(1,F.a+dt*0.5); const k=Math.min(1,dt*0.9); F.x=lerp(F.x,NAR_CUB+26,k); F.y=lerp(F.y,128+(S.rm?0:Math.sin(n.t*1.3)*5),k); } }
+/* white-flash level for a lightning strike: two flickers then a fade (only used when REDUCE FLASHING is off) */
+function narFlash(ft){ if(ft<0) return 0; if(ft<0.08) return 0.5; if(ft<0.15) return 0.08; if(ft<0.26) return 0.34; return Math.max(0,0.34-(ft-0.26)*0.9); }
+/* the soft dim used instead when REDUCE FLASHING is on: slow in, slow out, never bright */
+function narDim(ft){ if(ft<0) return 0; return ft<0.6?ft/0.6*0.3:Math.max(0,0.3-(ft-0.6)*0.15); }
+function narTree(g,x,y,col){ // the old acacia: crooked trunk, two long "arms", a flat umbrella crown
+  px(g,x-2,y-46,4,46,col); px(g,x-1,y-52,3,8,col); px(g,x-3,y-4,7,4,col);
+  for(let i=0;i<18;i++){ px(g,x-2-i,y-44-Math.round(i*0.9),2,2,col); px(g,x+1+i,y-48-Math.round(i*0.6),2,2,col); }
+  for(let i=0;i<9;i++){ px(g,x-20-i*2,y-60-Math.round(i*0.5),2,2,col); }
+  ell(g,x-10,y-64,26,6,col); ell(g,x+14,y-62,22,5,col); ell(g,x+2,y-68,20,4,col); }
+function drawNar(){ const P=PR, n=P.nar, t=n.t;
+  // own storm sky (the stock night-field art already has an acacia in it, which would spoil the reveal)
+  { const g=ctx.createLinearGradient(0,0,0,PR_GY); g.addColorStop(0,"#05050f"); g.addColorStop(1,"#10112a"); ctx.fillStyle=g; ctx.fillRect(0,0,W,PR_GY); }
+  ctx.fillStyle="#0a0a1a"; ctx.beginPath(); ctx.moveTo(0,PR_GY); for(let x=0;x<=W;x+=8) ctx.lineTo(x,PR_GY-14-Math.sin(x*0.021)*7-Math.sin(x*0.053+1)*3); ctx.lineTo(W,PR_GY); ctx.fill();   // far hills
+  for(let i=0;i<6;i++){ const cx=((i*71+(S.rm?0:t*3))%(W+120))-60; ell(ctx,cx,22+(i%3)*9,46,11,"rgba(18,18,34,0.85)"); }   // heavy clouds, crawling
+  const fl=S.rf?0:narFlash(n.ft), dim=S.rf?narDim(n.ft):0;
+  if(fl>0){ ctx.fillStyle="rgba(205,215,255,"+fl+")"; ctx.fillRect(0,0,W,PR_GY); }
+  // the acacia: almost invisible until lightning shows it; then it lingers faintly
+  const tv=n.tree;
+  if(tv>0){ ctx.globalAlpha=Math.min(1,tv*(fl>0?1:0.75)); narTree(ctx,NAR_TREE,PR_GY,fl>0?"#020206":"#0b0b18"); ctx.globalAlpha=1;
+    if(S.rf&&n.ft>=0&&n.ft<4){ ctx.globalAlpha=0.35*Math.min(1,n.ft/0.6)*Math.max(0,1-(n.ft-1.2)/2.8); ctx.save(); ctx.translate(0,-1); narTree(ctx,NAR_TREE,PR_GY,"#5a6290"); ctx.restore(); narTree(ctx,NAR_TREE,PR_GY,"#0b0b18"); ctx.globalAlpha=1; } }
+  px(ctx,0,PR_GY,W,H-PR_GY,"#07060e");
+  for(let i=0;i<40;i++){ const gx=i*8+((i*37)%5); px(ctx,gx,PR_GY-3-(i%3),1,4+(i%3),i%2?"#141226":"#0e0d1c"); }
+  // the hollow, and the warmth fading out of it
+  ell(ctx,NAR_CUB+2,PR_GY+1,22,4,"#040309");
+  if(n.warm>0.02){ ctx.save(); ctx.globalCompositeOperation="lighter"; const g=ctx.createRadialGradient(NAR_CUB+8,PR_GY-4,1,NAR_CUB+8,PR_GY-4,30); g.addColorStop(0,"rgba(255,180,110,"+0.22*n.warm+")"); g.addColorStop(1,"rgba(255,180,110,0)"); ctx.fillStyle=g; ctx.fillRect(NAR_CUB-24,PR_GY-36,64,44); ctx.restore(); }
+  // the cub: curled small; shivers when scared (still with REDUCE MOTION); stands for the roar
+  const stand=n.roarT>0, sh=(!S.rm&&n.fear>0.6&&!stand)?(Math.sin(t*38)>0?1:0):0;
+  ctx.save(); ctx.filter="brightness("+(fl>0?0.5+fl:0.5)+") saturate(0.6)";
+  if(!stand){ ctx.translate(NAR_CUB,PR_GY); ctx.scale(1,0.78); ctx.translate(-NAR_CUB,-PR_GY); }
+  sprDraw(ctx,"leon",NAR_CUB+sh,PR_GY,{era:"cub",f:1,ph:0,jump:0}); ctx.restore();
+  // rain
+  const nR=S.rm?36:80, sp=S.rm?150:270;
+  ctx.fillStyle="rgba(150,170,225,0.26)"; for(let i=0;i<nR;i++){ const y=((i*97)+t*sp)%(H+20)-10, x=(((i*53)-y*0.22)%W+W)%W; ctx.fillRect(x|0,y|0,1,4); }
+  // shifting shadows at the edges of sight: drift + reach in with fear (hold still with REDUCE MOTION)
+  const SH=[[0,40],[W,60],[20,H],[W-10,H-10]];
+  SH.forEach((b,i)=>{ const m=S.rm?0:1, dx=m*Math.sin(t*0.37+i*1.7)*16, dy=m*Math.cos(t*0.29+i*2.3)*10, r=70+n.fear*36+m*Math.sin(t*0.5+i)*6;
+    const g=ctx.createRadialGradient(b[0]+dx,b[1]+dy,4,b[0]+dx,b[1]+dy,r); g.addColorStop(0,"rgba(0,0,0,"+(0.35+0.4*n.fear)+")"); g.addColorStop(1,"rgba(0,0,0,0)"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); });
+  if(dim>0){ ctx.fillStyle="rgba(0,0,0,"+dim+")"; ctx.fillRect(0,0,W,H); }
+  if(n.ff.on) prFirefly(n.ff.x,n.ff.y,n.ff.a);
+  const vp=(!S.rf&&!S.rm)?n.hp*0.1*n.hv:0, v=ctx.createRadialGradient(W/2,H/2,50,W/2,H/2,200); v.addColorStop(0,"rgba(0,0,0,0)"); v.addColorStop(1,"rgba(0,0,0,"+(0.6+vp)+")"); ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
+  // typed narration
+  if(n.i>=0){ const L=PR_NAR[n.i], shown=L.t.slice(0,Math.floor(n.ch)), lines=wrap(shown,36), full=wrap(L.t,36), y0=H-14-full.length*10;
+    ctx.fillStyle="rgba(2,2,8,0.55)"; ctx.fillRect(0,y0-5,W,full.length*10+8);
+    lines.forEach((ln,k)=>{ const fw=textWidth(full[k]||ln); drawText(ctx,ln,Math.round(W/2-fw/2),y0+k*10,{c:"#d6cfe6",shadow:"#000"}); });
+    if(n.ch>=L.t.length&&Math.sin(t*3)>0) drawText(ctx,"\u25BC",W/2+Math.min(150,textWidth(full[full.length-1])/2+6),y0+(full.length-1)*10,{c:"#6a6488"}); }
+  if(n.i<0||n.t<2.4){ ctx.globalAlpha=clamp(1-n.t/2.4,0,1); ctx.fillStyle="#000"; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; }
+  if(n.end>0){ ctx.fillStyle="rgba(0,0,0,"+clamp(n.end/1.8,0,1)+")"; ctx.fillRect(0,0,W,H); }
+  drawText(ctx,(isTouch?"B":"ESC")+": SKIP",W-6,6,{align:"right",c:"#4a4458"}); }
 function prCaption(t,d){ PR.cap=t; PR.capT=d||3.2; }
 /* wordless murmurs: low sawtooth syllables behind a lowpass = voices through a wall. Two voices, no words. */
 function prVoices(dt){ if(!A.ctx||!PR.vOn) return; const t=PR.t; PR.vNext-=dt; if(PR.vNext>0) return;
@@ -1342,7 +1466,7 @@ function prVoices(dt){ if(!A.ctx||!PR.vOn) return; const t=PR.t; PR.vNext-=dt; i
     A.tone(f,tt,d+0.05,"sawtooth",g,{lp,att:0.025,to:f*(0.94+Math.random()*0.1)}); tt+=d+0.02+Math.random()*0.05; }
   PR.act=Math.min(1,PR.act+0.6); PR.vNext=(tt-A.now())+lerp(1.6,0.45,heat)+Math.random()*0.5; }
 function prLullaby(){ if(!A.ctx) return; const n=A.now()+0.05, M=[72,76,74,72,69,72]; M.forEach((m,i)=>A.tone(mid(m),n+i*0.42,0.9,"triangle",0.018,{rv:1,att:0.03})); }
-function prologueUpdate(dt){ const P=PR; P.t+=dt; if(P.capT>0) P.capT-=dt; P.act=Math.max(0,P.act-dt*1.6);
+function prologueUpdate(dt){ const P=PR; if(P.nar){ narUpdate(dt); return; } P.t+=dt; if(P.capT>0) P.capT-=dt; P.act=Math.max(0,P.act-dt*1.6);
   if(P.skip&&backP()){ prologueFinish(); return; }
   if(P.card>0){ P.card+=dt; if(P.card>6.2||(P.card>2.5&&P.skip&&okP())) prologueFinish(); return; }
   if(P.fade>0){ P.fade+=dt; if(P.fade>1.6) P.card=0.01; return; }
@@ -1382,7 +1506,7 @@ function prologueFinish(){ const rep=PR.replay; S.flags.prologue=1; save(); A.am
 function prFirefly(x,y,a){ if(a<=0) return; const pulse=S.rf?0.85+0.15*Math.sin(PR.t*1.6):0.55+0.45*Math.sin(PR.t*2.2);
   ctx.save(); ctx.globalCompositeOperation="lighter"; const g=ctx.createRadialGradient(x,y,0,x,y,26); g.addColorStop(0,"rgba(210,255,120,"+0.42*a*pulse+")"); g.addColorStop(1,"rgba(210,255,120,0)"); ctx.fillStyle=g; ctx.fillRect(x-26,y-26,52,52); ctx.restore();
   px(ctx,x-1,y-1,2,2,"rgba(240,255,170,"+a*(0.6+0.4*pulse)+")"); px(ctx,x-1,y,1,1,"rgba(255,255,230,"+a+")"); }
-function drawPrologue(){ const P=PR;
+function drawPrologue(){ const P=PR; if(P.nar){ drawNar(); return; }
   if(P.card>0){ ctx.fillStyle="#05040a"; ctx.fillRect(0,0,W,H); const k=clamp(P.card/1.4,0,1)*clamp((6.2-P.card)/1,0,1);
     ctx.globalAlpha=k; drawText(ctx,"LEON SIMBA KAING",W/2,H/2-8,{align:"center",s:2,c:"#f4ead8"}); ctx.globalAlpha=1;
     if(P.skip) drawText(ctx,(isTouch?"B":"ESC")+": SKIP",W-6,H-9,{align:"right",c:"#4a4458"}); return; }
@@ -1787,7 +1911,7 @@ function frame(now){ DT=Math.min(0.05,(now-last)/1000); last=now; T+=DT; FR++;
 requestAnimationFrame(frame);
 if(/[?&]sltest\b/.test(location.search)) Object.defineProperty(window,"__sl",{enumerable:false,configurable:false,value:{
   get mode(){return MODE;}, get S(){return S;}, get ST(){return {phase:ST.phase,got:ST.got,total:ST.total,x:ST.p&&ST.p.x,y:ST.p&&ST.p.y,silent:ST.silent,scared:ST.scared,fig:ST.fig&&ST.fig.on,sil:ST.sil&&ST.sil.state,glitched:ST.glitched,signT:ST.signT,fell:ST.fell,inv:ST.p&&ST.p.inv,shake:ST.shake,ins:ST.ins,fade:ST.fade};}, get VL(){return {x:VL.x,y:VL.y,near:VL.near&&(VL.near.kind==="obj"?VL.near.o.id:VL.near.n.who),weather:VL.weather};},
-  get DLG(){return DLG.cur?{who:DLG.cur.who,text:DLG.cur.text,q:DLG.q.length}:null;}, setEra:(e)=>{ ERA=e; }, files:()=>filesEnter("title"), prFinish:()=>prologueFinish(), get FS(){ return {sel:FS.sel,msg:FS.msgT>0?FS.msg:""}; }, slots:()=>[1,2,3].map(n=>{ const r=fileInfo(n); return r.st==="ok"?{st:"ok",ch:r.ch,era:r.era,play:Math.round(r.play||0),saved:r.saved,stars:r.stars,flags:r.d.flags,ch2:r.d.ch2}:{st:r.st}; }), get CUR(){ return CUR; }, get LIVE(){ return SLOTLIVE; }, slotRaw:(n,v)=>{ if(v===undefined) return localStorage.getItem("starLion2.slot"+n); localStorage.setItem("starLion2.slot"+n,v); }, dress:(on)=>{ S.wear.dress=!!on; if(typeof C2!=="undefined") C2.dress=on==null?null:(on?1:0); }, get leonBust(){ return bustName("leon","neutral"); }, get crownEarned(){ return !!S.flags.crownEarned; }, ch2:()=>ch2Enter(), ch3:()=>ch3Enter(), ch2meadow:()=>ch2Meadow(), ch2bully:()=>ch2Bully(), ch2hill:()=>ch2Hill(), hz:(x,y)=>{ C2HX=x; C2HY=y; }, stopSc:()=>{ SC.steps=[]; SC.wait=0; closeMenu(); DLG.q=[]; DLG.cur=null; }, c2set:(o)=>Object.assign(C2,o), say:(l)=>say(l), bully:()=>{ SP.p.x=SP.len-160; C2.toHill=true; ch2Bully(); }, spr:(n)=>!!SPRMETA[n], get F(){ const F=C2.F; return F?{st:F.st,comp:F.comp,nerve:F.nerve,lx:Math.round(F.lx),gx:Math.round(F.gx),auto:F.auto,hits:F.hits,shoves:F.shoves}:null; }, silURL:()=>{ const c=ch2SilBuild(); return c?c.toDataURL():null; }, get C2x(){ return {phase:C2.phase,ta:C2.ta,steady:C2.steady,hz:C2.hz?C2.hz.t:null,sit:C2.sit,static:C2.static}; }, get C2(){return {phase:C2.phase,jar:C2.jar,look:C2.look,groomed:C2.groomed,smiles:C2.smiles,mirror:C2.mirror,near:C2.near&&C2.near.id,x:C2.x};}, get C3(){return {phase:C3.phase,refl:C3.refl,still:C3.still,pool:C3.pool};}, get SPP(){return SP.p?{x:SP.p.x,y:SP.p.y,on:SP.p.on,len:SP.len,got:SP.got,fell:SP.fell,lock:!!SP.lock}:null;}, spWarp:(x)=>{ SP.p.x=x; SP.p.y=spSolidY(x)<999?spSolidY(x):100; SP.p.vx=SP.p.vy=0; SP.cam=clamp(x-W*0.4,0,SP.len-W); }, smoke:()=>SP.smoke?SP.smoke.map(s=>[s.x,s.y,Math.round(s.solid*10)/10]):null, get SCW(){return SC.wait;}, npcs:()=>VNPC.map(n=>({w:n.who,x:Math.round(n.x),y:Math.round(n.y),hide:n.hide,a:Math.round(n.alpha*10)/10,mv:!!n.moving})), get chat(){ return VL.chat?[VL.chat.a.who,VL.chat.b.who]:null; }, get dbg(){ return {auto:AUTO,pad:Object.assign({},pad),ss:SS.on,read:!!READ,lock:!!SP.lock,fade:SP.fade,fell:SP.fell,menu:!!MENU,dlg:dlgOpen()}; }, get era(){return ERA;}, get P(){return ST.p?{boost:ST.p.boost,flipT:ST.p.flipT,pounce:ST.p.pounce,roarCd:ST.p.roarCd,vx:ST.p.vx,vy:ST.p.vy,on:ST.p.on}:null;}, foes:()=>ST.lv?ST.lv.foes.map(e=>[Math.round(e.x),Math.round(e.y),e.alive]):null, get talk(){return DLG.cur?{who:DLG.cur.who,f:bustFrame(talkAmt(DLG.cur.who)),n:dlgShown(),len:DLG.cur.text.length}:null;}, get MENU(){return MENU?{title:MENU.title,sel:MENU.sel,n:MENU.items.length}:null;}, get READ(){return READ?READ.title:null;}, get CAFE(){return {on:CAFE.on,t:CAFE.t,score:CAFE.score,end:CAFE.end,want:CAFE.cust&&CAFE.cust.want,odd:CAFE.cust&&CAFE.cust.odd};}, get SS(){return SS.on;}, get PB(){return PB.t;}, get GL(){return GL.on;},
+  get DLG(){return DLG.cur?{who:DLG.cur.who,text:DLG.cur.text,q:DLG.q.length}:null;}, setEra:(e)=>{ ERA=e; }, files:()=>filesEnter("title"), prFinish:()=>prologueFinish(), AU:A, get NAR(){ const n=PR.nar; return MODE==='prologue'&&n?{i:n.i,ch:n.ch,txt:n.i>=0?PR_NAR[n.i].t:'',fear:n.fear,ft:n.ft,tree:n.tree,hv:n.hv,bpm:n.bpm,ff:n.ff.on,end:n.end,warm:n.warm}:null; }, narGo:(i)=>{ const n=PR.nar; if(!n) return false; n.i=i; n.ch=PR_NAR[i].t.length; n.hold=99; n.t=Math.max(n.t,3); narEv(n,PR_NAR[i].ev); return true; }, get PRS(){ return MODE==='prologue'?{scene:PR.scene,t:PR.t,nar:!!PR.nar}:null; }, get FS(){ return {sel:FS.sel,msg:FS.msgT>0?FS.msg:""}; }, slots:()=>[1,2,3].map(n=>{ const r=fileInfo(n); return r.st==="ok"?{st:"ok",ch:r.ch,era:r.era,play:Math.round(r.play||0),saved:r.saved,stars:r.stars,flags:r.d.flags,ch2:r.d.ch2}:{st:r.st}; }), get CUR(){ return CUR; }, get LIVE(){ return SLOTLIVE; }, slotRaw:(n,v)=>{ if(v===undefined) return localStorage.getItem("starLion2.slot"+n); localStorage.setItem("starLion2.slot"+n,v); }, dress:(on)=>{ S.wear.dress=!!on; if(typeof C2!=="undefined") C2.dress=on==null?null:(on?1:0); }, get leonBust(){ return bustName("leon","neutral"); }, get crownEarned(){ return !!S.flags.crownEarned; }, ch2:()=>ch2Enter(), ch3:()=>ch3Enter(), ch2meadow:()=>ch2Meadow(), ch2bully:()=>ch2Bully(), ch2hill:()=>ch2Hill(), hz:(x,y)=>{ C2HX=x; C2HY=y; }, stopSc:()=>{ SC.steps=[]; SC.wait=0; closeMenu(); DLG.q=[]; DLG.cur=null; }, c2set:(o)=>Object.assign(C2,o), say:(l)=>say(l), bully:()=>{ SP.p.x=SP.len-160; C2.toHill=true; ch2Bully(); }, spr:(n)=>!!SPRMETA[n], get F(){ const F=C2.F; return F?{st:F.st,comp:F.comp,nerve:F.nerve,lx:Math.round(F.lx),gx:Math.round(F.gx),auto:F.auto,hits:F.hits,shoves:F.shoves}:null; }, silURL:()=>{ const c=ch2SilBuild(); return c?c.toDataURL():null; }, get C2x(){ return {phase:C2.phase,ta:C2.ta,steady:C2.steady,hz:C2.hz?C2.hz.t:null,sit:C2.sit,static:C2.static}; }, get C2(){return {phase:C2.phase,jar:C2.jar,look:C2.look,groomed:C2.groomed,smiles:C2.smiles,mirror:C2.mirror,near:C2.near&&C2.near.id,x:C2.x};}, get C3(){return {phase:C3.phase,refl:C3.refl,still:C3.still,pool:C3.pool};}, get SPP(){return SP.p?{x:SP.p.x,y:SP.p.y,on:SP.p.on,len:SP.len,got:SP.got,fell:SP.fell,lock:!!SP.lock}:null;}, spWarp:(x)=>{ SP.p.x=x; SP.p.y=spSolidY(x)<999?spSolidY(x):100; SP.p.vx=SP.p.vy=0; SP.cam=clamp(x-W*0.4,0,SP.len-W); }, smoke:()=>SP.smoke?SP.smoke.map(s=>[s.x,s.y,Math.round(s.solid*10)/10]):null, get SCW(){return SC.wait;}, npcs:()=>VNPC.map(n=>({w:n.who,x:Math.round(n.x),y:Math.round(n.y),hide:n.hide,a:Math.round(n.alpha*10)/10,mv:!!n.moving})), get chat(){ return VL.chat?[VL.chat.a.who,VL.chat.b.who]:null; }, get dbg(){ return {auto:AUTO,pad:Object.assign({},pad),ss:SS.on,read:!!READ,lock:!!SP.lock,fade:SP.fade,fell:SP.fell,menu:!!MENU,dlg:dlgOpen()}; }, get era(){return ERA;}, get P(){return ST.p?{boost:ST.p.boost,flipT:ST.p.flipT,pounce:ST.p.pounce,roarCd:ST.p.roarCd,vx:ST.p.vx,vy:ST.p.vy,on:ST.p.on}:null;}, foes:()=>ST.lv?ST.lv.foes.map(e=>[Math.round(e.x),Math.round(e.y),e.alive]):null, get talk(){return DLG.cur?{who:DLG.cur.who,f:bustFrame(talkAmt(DLG.cur.who)),n:dlgShown(),len:DLG.cur.text.length}:null;}, get MENU(){return MENU?{title:MENU.title,sel:MENU.sel,n:MENU.items.length}:null;}, get READ(){return READ?READ.title:null;}, get CAFE(){return {on:CAFE.on,t:CAFE.t,score:CAFE.score,end:CAFE.end,want:CAFE.cust&&CAFE.cust.want,odd:CAFE.cust&&CAFE.cust.odd};}, get SS(){return SS.on;}, get PB(){return PB.t;}, get GL(){return GL.on;},
   get PR(){return {t:PR.t,scene:PR.scene,x:PR.x,y:PR.y,on:PR.on,ff:PR.ff&&PR.ff.on,vOn:PR.vOn,endT:PR.endT,fade:PR.fade,card:PR.card,skip:PR.skip,cap:PR.capT>0?PR.cap:""};}, prologue:(r)=>prologueEnter(r), get PRX(){return {sniffT:PR.sniffT,sniffs:PR.sniffs,duck:PR.duck,ducked:PR.ducked};},
   begin, title:()=>titleEnter(), village:()=>villageEnter(), stage:()=>stageEnter("s1"), vx:(x)=>{ VL.x=x; VL.cam=clamp(x-W/2,0,VW-W); }, vy:(y)=>{ VL.y=y; }, tod:(t)=>{ S.tod=t; }, weather:(w)=>{ VL.weather=w; },
   warp:(tx)=>{ ST.p.x=tx*TS+8; ST.p.y=(ROWS-ST.lv.top[tx])*TS; ST.p.vx=0; ST.p.vy=0; ST.cam=clamp(ST.p.x-W*0.4,0,LEN*TS-W); }, auto:(on)=>{ AUTO=on; if(!on){ pad.r=false; pad.j=false; } }, skipDlg:()=>{ DLG.q=[]; DLG.cur=null; const d=DLG.done; DLG.done=null; if(d) d(); },
