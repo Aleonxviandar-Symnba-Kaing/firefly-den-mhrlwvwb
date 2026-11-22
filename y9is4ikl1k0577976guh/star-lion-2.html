@@ -73,14 +73,37 @@ const ease=x=>x<0.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
 const SK="starLion2";
 /* v2 (story pass): eras are story-driven, not a player pick. Chapter 1 is always ADULT Leon; any stored era is ignored. */
 let ERA="adult";   // which Leon is being played: cub (prologue), teen (chapter 2), adult (chapters 1/3, village)
-const DEF=()=>({v:4,aff:{},ch2:{},stars:0,owned:{},wear:{hat:null,coat:false,crown:false,fenCrown:false,dress:false},done:{},best:{},flags:{},talk:{},tod:0.3,cafeBest:0,rf:false,rm:false,js:true,vol:0.5,muted:false,boots:0,cp:0});
-function loadS(){try{const j=JSON.parse(localStorage.getItem(SK)||"null");if(j&&typeof j==="object"){const d=Object.assign(DEF(),j);for(const k of ["owned","done","best","flags","talk"]) if(!d[k]||typeof d[k]!=="object") d[k]={}; if(!d.wear||typeof d.wear!=="object") d.wear=DEF().wear; d.wear=Object.assign(DEF().wear,d.wear); delete d.era; for(const k of ["aff","ch2"]) if(!d[k]||typeof d[k]!=="object") d[k]={}; /* v3 (four chapters): done.s1 = chapter 1; done.c2/c3 = chapters 2/3; aff = companion affinity */
+const DEF=()=>({v:4,aff:{},ch2:{},stars:0,owned:{},wear:{hat:null,coat:false,crown:false,fenCrown:false,dress:false},done:{},best:{},flags:{},talk:{},tod:0.3,cafeBest:0,rf:false,rm:false,js:true,vol:0.5,muted:false,boots:0,cp:0,play:0});
+/* v10: three save files. Each slot = {sv, saved (ms), data (game state, settings stripped)}; the index holds which file is in use and the
+   GLOBAL settings (shared by all files). The old single save (key "starLion2") is migrated into FILE 1 once and left in place untouched as a backup. */
+const SKI="starLion2.index", SAVEV=5, NSLOT=3, GSET=["rf","rm","js","vol","muted"];
+const SKS=n=>"starLion2.slot"+n;
+function normS(j){ if(!j||typeof j!=="object"||Array.isArray(j)) throw new Error("bad save"); const d=Object.assign(DEF(),j);for(const k of ["owned","done","best","flags","talk"]) if(!d[k]||typeof d[k]!=="object") d[k]={}; if(!d.wear||typeof d.wear!=="object") d.wear=DEF().wear; d.wear=Object.assign(DEF().wear,d.wear); delete d.era; for(const k of ["aff","ch2"]) if(!d[k]||typeof d[k]!=="object") d[k]={}; /* v3 (four chapters): done.s1 = chapter 1; done.c2/c3 = chapters 2/3; aff = companion affinity */
  /* v4: chapter 2 no longer has Kael (the hill is with Tavi). Strip the ch.2-era Kael affinity (up to 5 pts from the hill choices, plus any village
     talks that only happened because he used to appear after ch.2) and his hill memory line; old saves keep everything else. */
  if((j.v||1)<4){ const a=d.aff; if(a.kael){ a.kael=d.done.c3?Math.max(0,a.kael-5):0; if(!a.kael) delete a.kael; } if(d.affDay&&!d.done.c3) delete d.affDay.kael; if(d.mem){ delete d.mem["kael:aff"]; delete d.mem["kael|aff"]; } d.flags.v4mig=1; }
- d.v=4; return d;}}catch(e){}return DEF();}
-let S=loadS();
-function save(){try{localStorage.setItem(SK,JSON.stringify(S));}catch(e){}}
+ d.v=4; return d; }
+function loadS(){try{const j=JSON.parse(localStorage.getItem(SK)||"null");if(j&&typeof j==="object") return normS(j);}catch(e){}return DEF();}
+/* slot read with validation: "empty" | "ok" | "damaged" (never throws) */
+function readSlot(n){ let raw=null; try{ raw=localStorage.getItem(SKS(n)); }catch(e){ return {st:"damaged"}; } if(raw==null) return {st:"empty"};
+  try{ const w=JSON.parse(raw); if(!w||typeof w!=="object"||typeof w.sv!=="number"||!w.data||typeof w.data!=="object"||Array.isArray(w.data)) throw 0;
+    const d=normS(w.data); if(typeof d.flags!=="object"||typeof d.done!=="object") throw 0; return {st:"ok",d,saved:+w.saved||0,sv:w.sv,raw}; }catch(e){ return {st:"damaged",raw}; } }
+function writeSlot(n,d){ const o=Object.assign({},d); GSET.forEach(k=>delete o[k]); localStorage.setItem(SKS(n),JSON.stringify({sv:SAVEV,saved:Date.now(),data:o})); }
+function readIdx(){ try{ const x=JSON.parse(localStorage.getItem(SKI)||"null"); if(x&&typeof x==="object"&&!Array.isArray(x)){ x.cur=clamp(Math.floor(+x.cur)||1,1,NSLOT); if(!x.set||typeof x.set!=="object") x.set={}; if(!x.eggs||typeof x.eggs!=="object") x.eggs={}; return x; } }catch(e){} return null; }
+function bootSaves(){ let idx=readIdx();
+  if(!idx){ idx={v:1,cur:1,set:{},eggs:{}};   // eggs: reserved for later hidden things - nothing uses it yet
+    try{ const raw=localStorage.getItem(SK); if(raw&&readSlot(1).st==="empty"){ const d=normS(JSON.parse(raw)); GSET.forEach(k=>idx.set[k]=d[k]); d.flags.v5mig=1; writeSlot(1,d); } }catch(e){}
+    try{ localStorage.setItem(SKI,JSON.stringify(idx)); }catch(e){} }
+  return idx; }
+let SIDX=bootSaves(), CUR=SIDX.cur, SLOTLIVE=false;
+function withSettings(d){ const D=DEF(); GSET.forEach(k=>{ d[k]=SIDX.set[k]!=null?SIDX.set[k]:(d[k]!=null?d[k]:D[k]); }); return d; }
+let S=(()=>{ const r=readSlot(CUR); if(r.st==="ok"){ SLOTLIVE=true; return withSettings(r.d); } return withSettings(DEF()); })();
+function save(){try{ GSET.forEach(k=>SIDX.set[k]=S[k]); SIDX.cur=CUR; localStorage.setItem(SKI,JSON.stringify(SIDX)); if(SLOTLIVE) writeSlot(CUR,S); }catch(e){}}
+/* switch the game to file n (must be "ok"), or start file n from scratch */
+function useSlot(n){ const r=readSlot(n); if(r.st!=="ok") return false; S=withSettings(r.d); CUR=n; SLOTLIVE=true; ERA="adult"; save(); return true; }
+function newSlot(n){ S=withSettings(DEF()); S.boots=1; S.play=0; CUR=n; SLOTLIVE=true; ERA="adult"; save(); }
+function deleteSlot(n){ try{ localStorage.removeItem(SKS(n)); }catch(e){} if(n===CUR){ SLOTLIVE=false; S=withSettings(DEF()); } save(); }
+function copySlot(a,b){ if(a===CUR&&SLOTLIVE) save(); const r=readSlot(a); if(r.st!=="ok") return false; try{ writeSlot(b,r.d); }catch(e){ return false; } if(b===CUR&&SLOTLIVE) S=withSettings(readSlot(b).d); return true; }
 let MODE="warn"; // warn | pub | title | village | stage
 let T=0, DT=0.016;
 /* ---- input ---- */
@@ -1054,7 +1077,7 @@ function pubUpdate(dt){ PB.t+=dt; const t=PB.t;
   const li=Math.floor((t-4.2)/0.75); if(t>4.2&&li<PITCH.length&&Math.floor((t-dt-4.2)/0.75)!==li) A.blip("pub");
   if(!PB.crack&&t>10.4){ PB.crack=true; if(!glitchStart(0.7)) A.sfx.hum(); }
   if(!PB.stamp&&t>11.6){ PB.stamp=true; A.tone(70,A.now(),0.35,"sine",0.12,{to:40}); A.noise(A.now(),0.2,0.06,800,1); }
-  if((t>0.5&&anyP())||t>15) prologueEnter(); }
+  if((t>0.5&&anyP())||t>15) titleEnter(); }   // v10: the prologue now opens a NEW GAME in a file (File Select), not every first boot
 function drawPub(){ const t=PB.t;
   if(t<4){ const k=clamp(t/1.6,0,1); ctx.fillStyle="#fff8ec"; ctx.fillRect(0,0,W,H); const cy=104-ease(k)*18, sunC=PB.wrong?"#ff9a7a":"#ffb43a";
    ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,104); ctx.clip(); for(let i=0;i<12;i++){ const a=Math.PI+i/11*Math.PI; ctx.strokeStyle="rgba(255,180,60,"+0.7*k+")"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(W/2+Math.cos(a)*26,cy+Math.sin(a)*26); ctx.lineTo(W/2+Math.cos(a)*(34+6*Math.sin(T*3+i)),cy+Math.sin(a)*(34+6*Math.sin(T*3+i))); ctx.stroke(); }
@@ -1073,7 +1096,7 @@ function drawPub(){ const t=PB.t;
 /* ===== title ===== */
 const TI={t:0,menu:false};
 function titleEnter(){ MODE="title"; setBodyMode("game"); TI.t=0; TI.menu=false; closeMenu(); A.play("title"); A.wrong=0; A.ambSet({birds:0.5}); }
-function titleMenu(){ TI.menu=true; openMenu({title:"",w:150,y:96,items:[{label:()=>S.flags.met?"CONTINUE":"START GAME",fn:()=>{ closeMenu(); A.sfx.clear(); villageEnter(); }},{label:"OPTIONS",fn:()=>openMenu({title:"OPTIONS",w:210,items:optItems(()=>titleMenu()),back:()=>titleMenu()})},
+function titleMenu(){ TI.menu=true; openMenu({title:"",w:150,y:72,items:[{label:()=>SLOTLIVE?"CONTINUE  (FILE "+CUR+")":"NEW GAME",fn:()=>{ closeMenu(); if(SLOTLIVE){ A.sfx.clear(); villageEnter(); } else filesEnter("title"); }},{label:"SELECT FILE",fn:()=>filesEnter("title")},{label:"OPTIONS",fn:()=>openMenu({title:"OPTIONS",w:210,items:optItems(()=>titleMenu()),back:()=>titleMenu()})},
   {label:"DELUXE EDITION",right:"$69.69",fn:()=>{ closeMenu(); say([["pub","UPGRADE TO THE DELUXE EDITION AND UNLOCK THE COMPLETE STAR LION EXPERIENCE!"],["pub","THIS PURCHASE IS NOT AVAILABLE. NO PURCHASE IS EVER AVAILABLE. THIS IS A GAME ABOUT A LION."],["pub",S.done.s1?"PLEASE STOP LOOKING FOR HIM IN THE STORE PAGE.":"THANK YOU FOR YOUR UNDERSTANDING!"]],()=>titleMenu()); }},
   {label:"CREDITS",fn:()=>openRead("CREDITS",BOOKS.find(b=>b.id==="credits").x,()=>titleMenu())}].concat(S.flags.prologue?[{label:"PROLOGUE",fn:()=>{ closeMenu(); prologueEnter(true); }}]:[]),back:()=>{ TI.menu=false; closeMenu(); }}); }
 function titleUpdate(dt){ TI.t+=dt; if(READ) return readUpdate(); if(dlgOpen()) return dlgUpdate(dt); if(MENU) return menuUpdate(); if(TI.t>0.4&&okP()){ A.sfx.uiOk(); titleMenu(); } }
@@ -1089,6 +1112,55 @@ function drawTitle(){ const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(
   if(!TI.menu&&!dlgOpen()&&!READ){ if(Math.floor(T*1.8)%2) drawText(ctx,"PRESS START",W/2,78,{align:"center",s:2,c:"#ffffff",shadow:"#7a1a3a"}); }
   px(ctx,0,H-20,W,20,"rgba(30,10,30,0.55)"); drawText(ctx,"(C) 2026 SOL & LUNA STUDIO - LEON S K.",W/2,H-18,{align:"center",c:"#fff4dc"}); drawText(ctx,"ALL CHARACTERS ORIGINAL.",W/2,H-9,{align:"center",c:"#d8c8e8"});
   menuDraw(); readDraw(); dlgDraw(); }
+/* ===== v10: FILE SELECT - three save files (chapter, portrait, play time, last saved), new game / continue / copy / delete ===== */
+const FS={sel:0,t:0,from:"title",msg:"",msgT:0};
+const MON=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+function fileChapter(d){ if(!d.flags.prologue) return "PROLOGUE"; if(!d.done.s1) return "CHAPTER 1"; if(!d.done.c2) return "CHAPTER 2"; if(!d.done.c3) return "CHAPTER 3"; return "CHAPTER 3 CLEAR"; }
+function fileEra(d){ return d.flags.prologue?"adult":"cub"; }
+function filePlay(s){ s=Math.floor(+s||0); const h=Math.floor(s/3600), m=Math.floor(s/60)%60; return h+":"+String(m).padStart(2,"0"); }
+function fileDate(ms){ if(!ms) return "--"; const d=new Date(ms); let h=d.getHours(); const ap=h<12?"AM":"PM"; h=h%12||12; return MON[d.getMonth()]+" "+d.getDate()+" "+h+":"+String(d.getMinutes()).padStart(2,"0")+" "+ap; }
+function fileInfo(n){ const r=readSlot(n); if(r.st!=="ok") return r; const d=r.d; return Object.assign(r,{ch:fileChapter(d),era:fileEra(d),play:d.play,stars:d.stars||0}); }
+function filesEnter(from){ MODE="files"; setBodyMode("game"); closeMenu(); READ=null; FS.t=0; FS.from=from||"title"; FS.sel=clamp(CUR-1,0,NSLOT-1); FS.msg=""; }
+function filesBack(){ closeMenu(); titleEnter(); TI.t=0.5; titleMenu(); }
+function fsToast(m){ FS.msg=m; FS.msgT=2.2; }
+function fsConfirm(title,yes,no){ openMenu({title,w:200,sel:1,items:[{label:"YES",fn:()=>{ closeMenu(); yes(); }},{label:"NO",fn:()=>{ closeMenu(); if(no) no(); }}],back:()=>{ closeMenu(); if(no) no(); }}); }
+function fsStart(n){ closeMenu(); A.sfx.clear(); newSlot(n); prologueEnter(false); }
+function fsActions(n){ const r=fileInfo(n), L="FILE "+n, items=[];
+  if(r.st==="ok"){ items.push({label:"CONTINUE",fn:()=>{ closeMenu(); if(useSlot(n)){ A.sfx.clear(); villageEnter(); } }});
+    items.push({label:"COPY TO...",fn:()=>fsCopy(n)});
+    items.push({label:"START OVER",fn:()=>fsConfirm("OVERWRITE "+L+" WITH A NEW GAME?",()=>fsStart(n),()=>fsActions(n))});
+    items.push({label:"DELETE",fn:()=>fsConfirm("DELETE "+L+"? THIS CAN'T BE UNDONE.",()=>{ deleteSlot(n); fsToast(L+" DELETED"); })}); }
+  else if(r.st==="empty") items.push({label:"NEW GAME",fn:()=>fsStart(n)});
+  else { items.push({label:"DELETE DAMAGED FILE",fn:()=>fsConfirm("DELETE DAMAGED "+L+"?",()=>{ deleteSlot(n); fsToast(L+" CLEARED"); })});
+    items.push({label:"START OVER HERE",fn:()=>fsConfirm("OVERWRITE DAMAGED "+L+"?",()=>fsStart(n))}); }
+  items.push({label:"BACK",fn:()=>closeMenu()});
+  openMenu({title:L+(r.st==="damaged"?" (DAMAGED)":r.st==="empty"?" (EMPTY)":""),w:200,items,back:()=>closeMenu()}); }
+function fsCopy(n){ const items=[]; for(let k=1;k<=NSLOT;k++){ if(k===n) continue; const t=readSlot(k).st;
+    items.push({label:"FILE "+k+(t==="empty"?" (EMPTY)":t==="damaged"?" (DAMAGED)":""),fn:()=>{ const go=()=>{ if(copySlot(n,k)) fsToast("FILE "+n+" COPIED TO FILE "+k); else fsToast("COPY FAILED"); };
+      if(t==="empty") { closeMenu(); go(); } else fsConfirm("OVERWRITE FILE "+k+"?",go,()=>fsCopy(n)); }}); }
+  items.push({label:"BACK",fn:()=>fsActions(n)}); openMenu({title:"COPY FILE "+n+" TO",w:200,items,back:()=>fsActions(n)}); }
+const FS_Y0=24, FS_H=42;
+function filesUpdate(dt){ FS.t+=dt; if(FS.msgT>0) FS.msgT-=dt; if(MENU) return menuUpdate();
+  if(take("u")){ FS.sel=(FS.sel+NSLOT-1)%NSLOT; A.sfx.uiMove(); } if(take("d")){ FS.sel=(FS.sel+1)%NSLOT; A.sfx.uiMove(); }
+  if(FS.tap!=null){ const k=FS.tap; FS.tap=null; if(k===FS.sel){ A.sfx.uiOk(); fsActions(k+1); } else { FS.sel=k; A.sfx.uiMove(); } return; }
+  if(okP()){ A.sfx.uiOk(); fsActions(FS.sel+1); } else if(backP()){ A.sfx.uiBack(); filesBack(); } }
+function drawFiles(){ const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#2a1a40"); g.addColorStop(1,"#5a2a4a"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<24;i++){ const tw=S.rf?0.6:0.4+0.4*Math.sin(T*1.3+i); px(ctx,(i*53)%W,(i*29)%40+2,1,1,"rgba(255,240,200,"+tw+")"); }
+  drawText(ctx,"SELECT FILE",W/2,8,{align:"center",s:2,c:"#ffd84a",shadow:"#7a1a3a"});
+  for(let k=0;k<NSLOT;k++){ const n=k+1, y=FS_Y0+k*(FS_H+4), on=k===FS.sel, r=fileInfo(n);
+    panel(14,y,W-28,FS_H,on?"rgba(70,40,90,0.95)":"rgba(28,18,38,0.92)"); if(on){ starIcon(ctx,22,y+FS_H/2,3.4); }
+    drawText(ctx,"FILE "+n+(n===CUR&&SLOTLIVE?"  (IN USE)":""),32,y+4,{c:on?"#ffe8a0":"#d8c8e8"});
+    if(r.st==="ok"){ ctx.save(); ctx.beginPath(); ctx.rect(W-64,y+2,48,FS_H-4); ctx.clip(); ctx.translate(W-62,y+2); ctx.scale(0.7,0.7); drawBust(ctx,"leon_"+r.era+"_neutral",0,0,0); ctx.restore();
+      drawText(ctx,r.ch,32,y+13,{c:"#ffffff"}); drawText(ctx,(r.era==="cub"?"CUB":"ADULT")+" LEON   PLAY "+filePlay(r.play)+"   STARS "+r.stars,32,y+22,{c:"#c8e8ff"});
+      drawText(ctx,"SAVED "+fileDate(r.saved),32,y+31,{c:"#a898c0"}); }
+    else if(r.st==="empty") drawText(ctx,"NEW GAME",32,y+20,{s:2,c:"#9ad87a"});
+    else { drawText(ctx,"DAMAGED",32,y+13,{s:2,c:"#ff7a6a"}); drawText(ctx,"THIS FILE CAN'T BE READ. YOU CAN CLEAR IT.",32,y+30,{c:"#d8a8a8"}); } }
+  if(FS.msgT>0){ const w=Math.min(W-20,FS.msg.length*6+16); panel((W-w)/2,H-15,w,13); drawText(ctx,FS.msg,W/2,H-12,{align:"center",c:"#ffe8a0"}); }
+  else drawText(ctx,(isTouch?"A":"ENTER")+": CHOOSE   "+(isTouch?"B":"ESC")+": BACK",W/2,H-11,{align:"center",c:"#d8c8e8"});
+  menuDraw(); }
+/* tap a file card on touch screens (first tap selects, second opens) */
+cv.addEventListener("pointerdown",e=>{ if(MODE!=="files"||MENU) return; const b=cv.getBoundingClientRect(), y=(e.clientY-b.top)*H/b.height;
+  for(let k=0;k<NSLOT;k++){ const y0=FS_Y0+k*(FS_H+4); if(y>=y0&&y<y0+FS_H){ FS.tap=k; break; } } });
 /* ===== STAGE 1: SUNPAW MEADOWS ===== */
 const ROWS=11, OY=H-ROWS*TS, LEN=220;
 const ST={phase:"play",t:0,cam:0,p:null,lv:null,got:0,total:0,card:2.8,fade:0,fell:false,cp:4,lan:[],shake:0,ins:0,silent:false,fig:null,sil:null,hist:[],signT:0,glitched:false,scared:false,clearT:0,fenFall:false,dust:[],leaves:[],lost:[]};
@@ -1306,7 +1378,7 @@ function prologueUpdate(dt){ const P=PR; P.t+=dt; if(P.capT>0) P.capT-=dt; P.act
     if(P.x>=PR_FL-60&&!P.endT){ P.endT=0.01; }
     if(P.endT>0){ P.endT+=dt; if(P.x<PR_FL-40){ P.x+=30*dt; P.ph+=dt*6; P.f=1; } if(P.endT>4.2) P.fade=0.01; } }
   if(P.idle>9) P.hint=Math.min(1,P.hint+dt); else P.hint=Math.max(0,P.hint-dt*2); }
-function prologueFinish(){ S.flags.prologue=1; save(); A.ambSet({}); titleEnter(); }
+function prologueFinish(){ const rep=PR.replay; S.flags.prologue=1; save(); A.ambSet({}); if(rep) titleEnter(); else villageEnter(); }
 function prFirefly(x,y,a){ if(a<=0) return; const pulse=S.rf?0.85+0.15*Math.sin(PR.t*1.6):0.55+0.45*Math.sin(PR.t*2.2);
   ctx.save(); ctx.globalCompositeOperation="lighter"; const g=ctx.createRadialGradient(x,y,0,x,y,26); g.addColorStop(0,"rgba(210,255,120,"+0.42*a*pulse+")"); g.addColorStop(1,"rgba(210,255,120,0)"); ctx.fillStyle=g; ctx.fillRect(x-26,y-26,52,52); ctx.restore();
   px(ctx,x-1,y-1,2,2,"rgba(240,255,170,"+a*(0.6+0.4*pulse)+")"); px(ctx,x-1,y,1,1,"rgba(255,255,230,"+a+")"); }
@@ -1697,22 +1769,25 @@ $("vol").value=Math.round(S.vol*100); $("vol").oninput=e=>{ S.vol=e.target.value
 setJS(S.js); setRF(S.rf); setRM(S.rm); setMuted(S.muted);
 cv.addEventListener("pointerdown",()=>{ A.init(); if(MODE==="pub"||MODE==="title") pressed.add("a"); });
 let last=performance.now(), FR=0, AUTO=false;
+addEventListener("pagehide",()=>save()); document.addEventListener("visibilitychange",()=>{ if(document.hidden) save(); });
 function frame(now){ DT=Math.min(0.05,(now-last)/1000); last=now; T+=DT; FR++;
   try{
    if(MODE==="pub"){ pubUpdate(DT); if(MODE==="pub") drawPub(); }
    else if(MODE==="title"){ titleUpdate(DT); if(MODE==="title") drawTitle(); }
+   else if(MODE==="files"){ filesUpdate(DT); if(MODE==="files") drawFiles(); }
    else if(MODE==="village"){ villageUpdate(DT); if(MODE==="village") drawVillage(); }
    else if(MODE==="stage"){ stageUpdate(DT); if(MODE==="stage") drawStage(); }
    else if(MODE==="ch2"){ ch2Update(DT); if(MODE==="ch2") ch2Draw(); }
    else if(MODE==="ch3"){ ch3Update(DT); if(MODE==="ch3") ch3Draw(); }
    else if(MODE==="prologue"){ prologueUpdate(DT); if(MODE==="prologue") drawPrologue(); }
    if(MODE!=="warn") glitchDraw(DT);
+   if(SLOTLIVE&&MODE!=="warn"&&MODE!=="pub"&&MODE!=="title"&&MODE!=="files"&&!document.hidden){ S.play=(S.play||0)+DT; if((FR%600)===0) save(); }
   }catch(e){ console.error(e); }
   pressed.clear(); requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
 if(/[?&]sltest\b/.test(location.search)) Object.defineProperty(window,"__sl",{enumerable:false,configurable:false,value:{
   get mode(){return MODE;}, get S(){return S;}, get ST(){return {phase:ST.phase,got:ST.got,total:ST.total,x:ST.p&&ST.p.x,y:ST.p&&ST.p.y,silent:ST.silent,scared:ST.scared,fig:ST.fig&&ST.fig.on,sil:ST.sil&&ST.sil.state,glitched:ST.glitched,signT:ST.signT,fell:ST.fell,inv:ST.p&&ST.p.inv,shake:ST.shake,ins:ST.ins,fade:ST.fade};}, get VL(){return {x:VL.x,y:VL.y,near:VL.near&&(VL.near.kind==="obj"?VL.near.o.id:VL.near.n.who),weather:VL.weather};},
-  get DLG(){return DLG.cur?{who:DLG.cur.who,text:DLG.cur.text,q:DLG.q.length}:null;}, setEra:(e)=>{ ERA=e; }, dress:(on)=>{ S.wear.dress=!!on; if(typeof C2!=="undefined") C2.dress=on==null?null:(on?1:0); }, get leonBust(){ return bustName("leon","neutral"); }, get crownEarned(){ return !!S.flags.crownEarned; }, ch2:()=>ch2Enter(), ch3:()=>ch3Enter(), ch2meadow:()=>ch2Meadow(), ch2bully:()=>ch2Bully(), ch2hill:()=>ch2Hill(), hz:(x,y)=>{ C2HX=x; C2HY=y; }, stopSc:()=>{ SC.steps=[]; SC.wait=0; closeMenu(); DLG.q=[]; DLG.cur=null; }, c2set:(o)=>Object.assign(C2,o), say:(l)=>say(l), bully:()=>{ SP.p.x=SP.len-160; C2.toHill=true; ch2Bully(); }, spr:(n)=>!!SPRMETA[n], get F(){ const F=C2.F; return F?{st:F.st,comp:F.comp,nerve:F.nerve,lx:Math.round(F.lx),gx:Math.round(F.gx),auto:F.auto,hits:F.hits,shoves:F.shoves}:null; }, silURL:()=>{ const c=ch2SilBuild(); return c?c.toDataURL():null; }, get C2x(){ return {phase:C2.phase,ta:C2.ta,steady:C2.steady,hz:C2.hz?C2.hz.t:null,sit:C2.sit,static:C2.static}; }, get C2(){return {phase:C2.phase,jar:C2.jar,look:C2.look,groomed:C2.groomed,smiles:C2.smiles,mirror:C2.mirror,near:C2.near&&C2.near.id,x:C2.x};}, get C3(){return {phase:C3.phase,refl:C3.refl,still:C3.still,pool:C3.pool};}, get SPP(){return SP.p?{x:SP.p.x,y:SP.p.y,on:SP.p.on,len:SP.len,got:SP.got,fell:SP.fell,lock:!!SP.lock}:null;}, spWarp:(x)=>{ SP.p.x=x; SP.p.y=spSolidY(x)<999?spSolidY(x):100; SP.p.vx=SP.p.vy=0; SP.cam=clamp(x-W*0.4,0,SP.len-W); }, smoke:()=>SP.smoke?SP.smoke.map(s=>[s.x,s.y,Math.round(s.solid*10)/10]):null, get SCW(){return SC.wait;}, npcs:()=>VNPC.map(n=>({w:n.who,x:Math.round(n.x),y:Math.round(n.y),hide:n.hide,a:Math.round(n.alpha*10)/10,mv:!!n.moving})), get chat(){ return VL.chat?[VL.chat.a.who,VL.chat.b.who]:null; }, get dbg(){ return {auto:AUTO,pad:Object.assign({},pad),ss:SS.on,read:!!READ,lock:!!SP.lock,fade:SP.fade,fell:SP.fell,menu:!!MENU,dlg:dlgOpen()}; }, get era(){return ERA;}, get P(){return ST.p?{boost:ST.p.boost,flipT:ST.p.flipT,pounce:ST.p.pounce,roarCd:ST.p.roarCd,vx:ST.p.vx,vy:ST.p.vy,on:ST.p.on}:null;}, foes:()=>ST.lv?ST.lv.foes.map(e=>[Math.round(e.x),Math.round(e.y),e.alive]):null, get talk(){return DLG.cur?{who:DLG.cur.who,f:bustFrame(talkAmt(DLG.cur.who)),n:dlgShown(),len:DLG.cur.text.length}:null;}, get MENU(){return MENU?{title:MENU.title,sel:MENU.sel,n:MENU.items.length}:null;}, get READ(){return READ?READ.title:null;}, get CAFE(){return {on:CAFE.on,t:CAFE.t,score:CAFE.score,end:CAFE.end,want:CAFE.cust&&CAFE.cust.want,odd:CAFE.cust&&CAFE.cust.odd};}, get SS(){return SS.on;}, get PB(){return PB.t;}, get GL(){return GL.on;},
+  get DLG(){return DLG.cur?{who:DLG.cur.who,text:DLG.cur.text,q:DLG.q.length}:null;}, setEra:(e)=>{ ERA=e; }, files:()=>filesEnter("title"), prFinish:()=>prologueFinish(), get FS(){ return {sel:FS.sel,msg:FS.msgT>0?FS.msg:""}; }, slots:()=>[1,2,3].map(n=>{ const r=fileInfo(n); return r.st==="ok"?{st:"ok",ch:r.ch,era:r.era,play:Math.round(r.play||0),saved:r.saved,stars:r.stars,flags:r.d.flags,ch2:r.d.ch2}:{st:r.st}; }), get CUR(){ return CUR; }, get LIVE(){ return SLOTLIVE; }, slotRaw:(n,v)=>{ if(v===undefined) return localStorage.getItem("starLion2.slot"+n); localStorage.setItem("starLion2.slot"+n,v); }, dress:(on)=>{ S.wear.dress=!!on; if(typeof C2!=="undefined") C2.dress=on==null?null:(on?1:0); }, get leonBust(){ return bustName("leon","neutral"); }, get crownEarned(){ return !!S.flags.crownEarned; }, ch2:()=>ch2Enter(), ch3:()=>ch3Enter(), ch2meadow:()=>ch2Meadow(), ch2bully:()=>ch2Bully(), ch2hill:()=>ch2Hill(), hz:(x,y)=>{ C2HX=x; C2HY=y; }, stopSc:()=>{ SC.steps=[]; SC.wait=0; closeMenu(); DLG.q=[]; DLG.cur=null; }, c2set:(o)=>Object.assign(C2,o), say:(l)=>say(l), bully:()=>{ SP.p.x=SP.len-160; C2.toHill=true; ch2Bully(); }, spr:(n)=>!!SPRMETA[n], get F(){ const F=C2.F; return F?{st:F.st,comp:F.comp,nerve:F.nerve,lx:Math.round(F.lx),gx:Math.round(F.gx),auto:F.auto,hits:F.hits,shoves:F.shoves}:null; }, silURL:()=>{ const c=ch2SilBuild(); return c?c.toDataURL():null; }, get C2x(){ return {phase:C2.phase,ta:C2.ta,steady:C2.steady,hz:C2.hz?C2.hz.t:null,sit:C2.sit,static:C2.static}; }, get C2(){return {phase:C2.phase,jar:C2.jar,look:C2.look,groomed:C2.groomed,smiles:C2.smiles,mirror:C2.mirror,near:C2.near&&C2.near.id,x:C2.x};}, get C3(){return {phase:C3.phase,refl:C3.refl,still:C3.still,pool:C3.pool};}, get SPP(){return SP.p?{x:SP.p.x,y:SP.p.y,on:SP.p.on,len:SP.len,got:SP.got,fell:SP.fell,lock:!!SP.lock}:null;}, spWarp:(x)=>{ SP.p.x=x; SP.p.y=spSolidY(x)<999?spSolidY(x):100; SP.p.vx=SP.p.vy=0; SP.cam=clamp(x-W*0.4,0,SP.len-W); }, smoke:()=>SP.smoke?SP.smoke.map(s=>[s.x,s.y,Math.round(s.solid*10)/10]):null, get SCW(){return SC.wait;}, npcs:()=>VNPC.map(n=>({w:n.who,x:Math.round(n.x),y:Math.round(n.y),hide:n.hide,a:Math.round(n.alpha*10)/10,mv:!!n.moving})), get chat(){ return VL.chat?[VL.chat.a.who,VL.chat.b.who]:null; }, get dbg(){ return {auto:AUTO,pad:Object.assign({},pad),ss:SS.on,read:!!READ,lock:!!SP.lock,fade:SP.fade,fell:SP.fell,menu:!!MENU,dlg:dlgOpen()}; }, get era(){return ERA;}, get P(){return ST.p?{boost:ST.p.boost,flipT:ST.p.flipT,pounce:ST.p.pounce,roarCd:ST.p.roarCd,vx:ST.p.vx,vy:ST.p.vy,on:ST.p.on}:null;}, foes:()=>ST.lv?ST.lv.foes.map(e=>[Math.round(e.x),Math.round(e.y),e.alive]):null, get talk(){return DLG.cur?{who:DLG.cur.who,f:bustFrame(talkAmt(DLG.cur.who)),n:dlgShown(),len:DLG.cur.text.length}:null;}, get MENU(){return MENU?{title:MENU.title,sel:MENU.sel,n:MENU.items.length}:null;}, get READ(){return READ?READ.title:null;}, get CAFE(){return {on:CAFE.on,t:CAFE.t,score:CAFE.score,end:CAFE.end,want:CAFE.cust&&CAFE.cust.want,odd:CAFE.cust&&CAFE.cust.odd};}, get SS(){return SS.on;}, get PB(){return PB.t;}, get GL(){return GL.on;},
   get PR(){return {t:PR.t,scene:PR.scene,x:PR.x,y:PR.y,on:PR.on,ff:PR.ff&&PR.ff.on,vOn:PR.vOn,endT:PR.endT,fade:PR.fade,card:PR.card,skip:PR.skip,cap:PR.capT>0?PR.cap:""};}, prologue:(r)=>prologueEnter(r), get PRX(){return {sniffT:PR.sniffT,sniffs:PR.sniffs,duck:PR.duck,ducked:PR.ducked};},
   begin, title:()=>titleEnter(), village:()=>villageEnter(), stage:()=>stageEnter("s1"), vx:(x)=>{ VL.x=x; VL.cam=clamp(x-W/2,0,VW-W); }, vy:(y)=>{ VL.y=y; }, tod:(t)=>{ S.tod=t; }, weather:(w)=>{ VL.weather=w; },
   warp:(tx)=>{ ST.p.x=tx*TS+8; ST.p.y=(ROWS-ST.lv.top[tx])*TS; ST.p.vx=0; ST.p.vy=0; ST.cam=clamp(ST.p.x-W*0.4,0,LEN*TS-W); }, auto:(on)=>{ AUTO=on; if(!on){ pad.r=false; pad.j=false; } }, skipDlg:()=>{ DLG.q=[]; DLG.cur=null; const d=DLG.done; DLG.done=null; if(d) d(); },
