@@ -554,7 +554,8 @@ function villageEnter(fromStage){ MODE="village"; setBodyMode("game"); closeMenu
   VL.rain=[]; VL.petals=[]; VL.flies=[]; for(let i=0;i<60;i++) VL.rain.push({x:Math.random()*W,y:Math.random()*H,v:220+Math.random()*80}); for(let i=0;i<24;i++) VL.petals.push({x:Math.random()*W,y:Math.random()*H,o:Math.random()*6}); for(let i=0;i<16;i++) VL.flies.push({x:Math.random()*VW,y:GY-10-Math.random()*50,o:Math.random()*6});
   if(fromStage){ VL.x=940; VL.f=-1; } A.play(daylight(S.tod)>0.4?"vday":"vnight"); A.wrong=S.done.s1?0.35:0; save();
   if(!S.flags.met){ S.flags.met=1; save(); setTimeout(()=>{ if(MODE==="village"&&!dlgOpen()) say(INTRO_LINES); },700); }
-  else if(fromStage==="s1"&&!S.flags.postS1){ S.flags.postS1=1; save(); say(POST_S1,()=>{ S.flags.simba=1; save(); }); } }
+  // the naming plays once stage 1 is done and he hasn't been named yet: covers saves that cleared it before v3 (v1 saves) and a naming scene left half-way
+  else if(S.done.s1&&!S.flags.simba){ S.flags.postS1=1; save(); const go=()=>{ if(MODE==="village"&&!dlgOpen()) say(POST_S1,()=>{ S.flags.simba=1; save(); }); }; if(fromStage==="s1") go(); else setTimeout(go,700); } }
 const INTRO_LINES=[["pub","WELCOME TO SUNHOLLOW, THE ALL-NEW HUB VILLAGE OF STAR LION 2! (REMASTERED!)"],
  ["fen","LEON! There he is. My sterling partner, freshly remastered. Look at you. Every hair exactly where it belongs."],
  ["leon","Fen. It's so quiet. Where is everybody?"],
