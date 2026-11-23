@@ -73,7 +73,7 @@ const ease=x=>x<0.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
 const SK="starLion2";
 /* v2 (story pass): eras are story-driven, not a player pick. Chapter 1 is always ADULT Leon; any stored era is ignored. */
 let ERA="adult";   // which Leon is being played: cub (prologue), teen (chapter 2), adult (chapters 1/3, village)
-const DEF=()=>({v:4,aff:{},ch2:{},stars:0,owned:{},wear:{hat:null,coat:false,crown:false,fenCrown:false,dress:false},done:{},best:{},flags:{},talk:{},tod:0.3,cafeBest:0,rf:false,rm:false,js:true,vol:0.5,muted:false,boots:0,cp:0,play:0});
+const DEF=()=>({v:4,aff:{},ch2:{},stars:0,owned:{},wear:{hat:null,coat:false,crown:false,fenCrown:false,dress:false},done:{},best:{},flags:{},talk:{},tod:0.3,cafeBest:0,rf:false,rm:false,js:true,vol:0.5,muted:false,boots:0,cp:0,play:0,comp:null,trust:{},camp:{}});
 /* v10: three save files. Each slot = {sv, saved (ms), data (game state, settings stripped)}; the index holds which file is in use and the
    GLOBAL settings (shared by all files). The old single save (key "starLion2") is migrated into FILE 1 once and left in place untouched as a backup. */
 const SKI="starLion2.index", SAVEV=5, NSLOT=3, GSET=["rf","rm","js","vol","muted"];
@@ -82,6 +82,10 @@ function normS(j){ if(!j||typeof j!=="object"||Array.isArray(j)) throw new Error
  /* v4: chapter 2 no longer has Kael (the hill is with Tavi). Strip the ch.2-era Kael affinity (up to 5 pts from the hill choices, plus any village
     talks that only happened because he used to appear after ch.2) and his hill memory line; old saves keep everything else. */
  if((j.v||1)<4){ const a=d.aff; if(a.kael){ a.kael=d.done.c3?Math.max(0,a.kael-5):0; if(!a.kael) delete a.kael; } if(d.affDay&&!d.done.c3) delete d.affDay.kael; if(d.mem){ delete d.mem["kael:aff"]; delete d.mem["kael|aff"]; } d.flags.v4mig=1; }
+ /* v12: companion (per file) - null until chosen after chapter 3; trust 0..6 per companion; camp = interlude memory */
+ if(["fen","kael","si","solo"].indexOf(d.comp)<0) d.comp=null;
+ if(!d.trust||typeof d.trust!=="object"||Array.isArray(d.trust)) d.trust={}; for(const k in d.trust){ const v=+d.trust[k]; if(["fen","kael","si"].indexOf(k)<0||!isFinite(v)) delete d.trust[k]; else d.trust[k]=Math.max(0,Math.min(6,Math.round(v))); }
+ if(!d.camp||typeof d.camp!=="object"||Array.isArray(d.camp)) d.camp={}; if(!d.camp.mem||typeof d.camp.mem!=="object") d.camp.mem={};
  d.v=4; return d; }
 function loadS(){try{const j=JSON.parse(localStorage.getItem(SK)||"null");if(j&&typeof j==="object") return normS(j);}catch(e){}return DEF();}
 /* slot read with validation: "empty" | "ok" | "damaged" (never throws) */
@@ -295,7 +299,7 @@ const A={ctx:null,kind:null,step:0,nt:0,wrong:0,amb:{},
   chime(){ const t=A.now(); [84,88,91].forEach((n,i)=>A.tone(mid(n),t+i*0.08,1,"sine",0.03,{rv:1})); }
  }
 };
-const VOICES={tavi:{f:560,w:"sine",sp:2,lp:2600},garrow:{f:150,w:"square",sp:1.4,lp:1100},leon:{f:300,w:"triangle",sp:2,lp:2400},cub:{f:520,w:"triangle",sp:2,lp:2600},fen:{f:470,w:"square",sp:3,lp:2600,f2:1.5},kael:{f:190,w:"sawtooth",sp:1.5,lp:1300},leia:{f:620,w:"sine",sp:2,f2:2},si:{f:880,w:"sine",sp:3},
+const VOICES={inner:{f:250,w:"sine",sp:1,lp:1300},gloam:{f:105,w:"triangle",sp:1,lp:700},tavi:{f:560,w:"sine",sp:2,lp:2600},garrow:{f:150,w:"square",sp:1.4,lp:1100},leon:{f:300,w:"triangle",sp:2,lp:2400},cub:{f:520,w:"triangle",sp:2,lp:2600},fen:{f:470,w:"square",sp:3,lp:2600,f2:1.5},kael:{f:190,w:"sawtooth",sp:1.5,lp:1300},leia:{f:620,w:"sine",sp:2,f2:2},si:{f:880,w:"sine",sp:3},
  owl:{f:260,w:"sine",sp:1},raven:{f:330,w:"sawtooth",sp:4,lp:1800},tort:{f:150,w:"triangle",sp:0.5,lp:900},otter:{f:700,w:"square",sp:4,lp:3000},heron:{f:420,w:"triangle",sp:1,lp:2000},moth:{f:980,w:"sine",sp:1},snail:{f:240,w:"sine",sp:0.3},zeb:{f:360,w:"triangle",sp:2.5,lp:2600,f2:1.25},hare:{f:640,w:"square",sp:3,lp:3000},sign:{f:520,w:"square",sp:0,lp:2000},pub:{f:560,w:"square",sp:1,lp:3500},cat:{f:760,w:"triangle",sp:4}};
 const TITLE_MEL=[72,null,76,79, 81,null,79,76, 77,null,76,74, 72,null,null,74, 76,null,79,84, 83,null,81,79, 81,79,77,76, 74,null,null,null,
  72,null,76,79, 81,null,84,83, 81,null,79,77, 76,null,74,76, 77,null,76,74, 72,null,74,76, 72,null,null,null, null,null,67,71];
@@ -412,7 +416,7 @@ function drawZebra(g,x,y,o){ o=o||{}; const f=o.f||1, s=o.s||1; g.save(); g.tran
   g.restore(); }
 function drawHare(g,x,y,o){ o=o||{}; const f=o.f||1, s=o.s||1; g.save(); g.translate(x,y); g.scale(f*s,s); ell(g,-4,-2.5,4,2.6,"#b8946a"); ell(g,0,-6,4.4,4.6,"#c8a47a"); ell(g,0.8,-5,2.6,3,"#f0e0c8"); ell(g,2.6,-11.6,3,2.8,"#c8a47a"); g.fillStyle="#c8a47a"; g.beginPath(); g.ellipse(0.8,-17,1,4.2,-0.2,0,7); g.ellipse(2.4,-17.4,1,4.4,0.15,0,7); g.fill(); ell(g,4.6,-11.4,0.6,0.5,"#5a2a2a"); ell(g,3.4,-12.4,0.6,0.6,"#1a1008"); mouth(g,4.2,-10.2,1.2,o.talk||0); ell(g,-7.4,-3.6,1.4,1.4,"#fff6e8"); g.restore(); }
 const NPCDRAW={leon:drawLeon,fen:drawFen,kael:drawKael,leia:drawLeia,si:drawSi,owl:drawOwl,raven:drawRaven,tort:drawTortoise,otter:drawOtter,heron:drawHeron,moth:drawMoth,snail:drawSnail,zeb:drawZebra,hare:drawHare};
-const NAMES={leon:"LEON",cub:"LEON",fen:"FEN",kael:"KAEL",leia:"LEIA",si:"LITTLE SI",tavi:"TAVI",garrow:"GARROW",owl:"PROF. HOOLANDER",raven:"CORVINA",tort:"OLD BASALT",otter:"RIPPLE",heron:"MS. WADE",moth:"LUMEN",snail:"SIR TRUNDLE",zeb:"MADAME ZEBRINE",hare:"HOPSCOTCH",sign:"SIGN",pub:"HALCYON BRIGHT",cat:"CAFE CAT","???":"???"};
+const NAMES={leon:"LEON",cub:"LEON",fen:"FEN",kael:"KAEL",leia:"LEIA",si:"LITTLE SI",tavi:"TAVI",garrow:"GARROW",owl:"PROF. HOOLANDER",raven:"CORVINA",tort:"OLD BASALT",otter:"RIPPLE",heron:"MS. WADE",moth:"LUMEN",snail:"SIR TRUNDLE",zeb:"MADAME ZEBRINE",hare:"HOPSCOTCH",sign:"SIGN",pub:"HALCYON BRIGHT",cat:"CAFE CAT","???":"???",inner:"INNER VOICE",gloam:"OLD GLOAM"};
 function unitMul(who){ return who==="leon"?({cub:0.66,teen:0.88,adult:1.04}[ERA]):who==="kael"?1.08:who==="leia"?0.86:who==="si"?0.5:who==="tavi"?0.86:who==="garrow"?1:1; }
 /* portrait focus point per character (unit coords of the face) and scale */
 const PORT={tavi:[10.5,-16,3.6],garrow:[11,-16,3.2],leon:[11,-16,3.2],fen:[11,-16,3.4],kael:[12,-16,3],leia:[10.5,-16,3.6],si:[9,-14,5.5],owl:[0,-11,4.4],raven:[3,-7,5],tort:[5,-5,4.5],otter:[1,-11,4.4],heron:[4,-21,4],moth:[0,-1,7],snail:[3,-4,5.5],zeb:[12,-20,3.4],hare:[2,-10,4.4]};
@@ -447,13 +451,14 @@ const MAINCAST={fen:1,kael:1,leia:1,si:1,tavi:1,garrow:1};
 /* "cub" is little Leon (prologue / the mirror); "leon" is always adult in chapter 1. Fen's bust follows his peony-crown cosmetic. */
 function bustName(who,mood){ mood=mood||"neutral";
   if(who==="leon"){ if(mood==="wrong") return "leon_wrong"; return (leonDress()?"leon_dress_":"leon_"+ERA+"_")+mood; }
+  if(who==="inner") return "leon_adult_"+(mood==="wrong"?"worried":mood);   // v12: the inner voice wears his own face, faintly
   if(who==="cub") return "leon_cub_"+(mood==="wrong"?"scared":mood);
   if(who==="fen") return (S.wear.fenCrown?"fenc_":"fen_")+mood;
   if(MAINCAST[who]) return who+"_"+mood; return BUSTMETA.idx[who]?who:null; }
 /* v9: teen Leon's optional "dress to impress" look (bolt face paint, star, choker, studded cuffs). Off by default.
    In chapter 2 it follows the wardrobe pick (C2.dress); elsewhere the S.wear.dress outfit flag. Only the teen era has it. */
 function leonDress(){ if(ERA!=="teen") return false; if(MODE==="ch2"&&typeof C2!=="undefined"&&C2.dress!=null) return !!C2.dress; return !!(S.wear&&S.wear.dress); }
-function hasBust(who){ return who==="leon"||who==="cub"||!!MAINCAST[who]||!!BUSTMETA.idx[who]; }
+function hasBust(who){ return who==="leon"||who==="inner"||who==="cub"||!!MAINCAST[who]||!!BUSTMETA.idx[who]; }
 function autoMood(who,text){ const t=text||"";
   if(/(\bRUN\b|DON'T LOOK|BEHIND YOU|WHAT WAS THAT|\bHELP\b|NO, NO|AAA|!\?|\?!)/i.test(t)) return "scared";
   if(/(\.\.\.|\bwrong\b|\bweird\b|\bodd\b|\bstrange\b|\bmissed\b|\bsorry\b|\bcareful\b|\blost\b|\bnervous\b|\bworse\b|\bhumming\b|\bnever\b|\?)/i.test(t)) return "worried";
@@ -568,7 +573,7 @@ const DLG={q:[],cur:null,t:0,done:null,blinkT:2};
 /* ---- what each NPC calls Leon: by personality and by Leon's era. Lines use the token {N}; it is filled in when spoken.
    close family/friends (Fen, his mother, the narrator, Leon himself) keep "Leon". Garrow gets a cold, neutral surname only (no pet names, no slurs).
    Fen keeps Leon's true name safe (v11): he only ever almost-says it, so no one says it here either. Room is left for later secret names. */
-const NICK_KIND={fen:"close",mom:"close",mother:"close",narrator:"close",leon:"close",cub:"close",
+const NICK_KIND={fen:"close",inner:"close",gloam:"elder",mom:"close",mother:"close",narrator:"close",leon:"close",cub:"close",
   tavi:"gentle",kael:"gentle",tort:"elder",moth:"gentle",owl:"formal",heron:"formal",snail:"formal",
   otter:"big",zeb:"tease",hare:"tease",raven:"tease",garrow:"cold"};
 const NICK_TEASE={zeb:["kitty cat","Kit Kat","Kit Kat"],hare:["kitty cat","cat attack","cat attack"],raven:["kitty cat","kitty cat","kitty cat"]};
@@ -602,8 +607,9 @@ function dlgDraw(){ const c=DLG.cur; if(!c) return; const y=H-56, hasP=hasBust(c
   panel(4,y,W-8,52);
   if(hasP){ const mood=dlgMood(c), nm=bustName(c.who,mood), wrong=nm==="leon_wrong";
     bustCard(ctx,9,y+5,54,42,wrong); ctx.save(); ctx.beginPath(); ctx.rect(9,y-16,54,63); ctx.clip();
+    if(c.who==="inner") ctx.globalAlpha=0.5;
     if(!(nm&&drawBust(ctx,nm,bustFrame(talkAmt(c.who)),6,y-13,y+47))) drawPortrait(ctx,c.who,9,y+5,54,42,talkAmt(c.who),DLG.blinkT<0);
-    ctx.restore(); }
+    ctx.restore(); ctx.globalAlpha=1; }
   const tx=hasP?70:12, nm=NAMES[c.who]||c.who.toUpperCase(); px(ctx,tx-2,y-5,nm.length*6+6,10,"#ffd36a"); drawText(ctx,nm,tx+1,y-3,{c:"#2a1834"});
   const lines=wrap(c.text.slice(0,dlgShown()).toUpperCase(),hasP?40:50); lines.slice(0,4).forEach((l,i)=>drawText(ctx,l,tx,y+8+i*10,{c:"#fff4dc"}));
   if(dlgShown()>=c.text.length&&Math.floor(T*3)%2) starIcon(ctx,W-14,y+44,3.5); }
@@ -652,9 +658,9 @@ function eraAct(p,dt,foes,fx){ if(p.boost===undefined) eraReset(p);
     if(p.on){ if(p.dashCd<=0){ p.vx=p.f*250; p.boost=0.2; p.dashCd=0.55; A.sfx.dash(); return true; } }
     else if(!p.flipUsed){ p.flipUsed=true; p.vy=-215; p.flipT=0.38; A.sfx.flip(); return true; } }
   else if(ERA==="adult"){
-    if(p.on){ if(p.roarCd<=0){ p.roarCd=2.2; A.sfx.roar(); fx.roars.push({x:p.x+p.f*6,y:p.y-12,t:0,f:p.f}); let n=0;
-        for(const e of foes){ const dx=e.x-p.x; if(e.alive&&Math.abs(e.y-p.y)<34&&(Math.abs(dx)<26||(Math.sign(dx)===p.f&&Math.abs(dx)<70))){ e.alive=false; e.poof=0; n++; } }
-        if(n) A.sfx.stomp(); if(!S.flags.roared){ S.flags.roared=1; save(); setTimeout(()=>{ if(!dlgOpen()&&(MODE==="stage"||MODE==="ch3")) say([["leon","Easy, little ones. I don't need to be loud to be heard... but it does clear the path."]]); },500); }
+    if(p.on){ if(p.roarCd<=0){ p.roarCd=2.2; A.sfx.roar(); fx.roars.push({x:p.x+p.f*6,y:p.y-12,t:0,f:p.f,pw:fx.power||1}); let n=0; const rg=0.75+0.25*(fx.power||1);
+        for(const e of foes){ const dx=e.x-p.x; if(e.alive&&Math.abs(e.y-p.y)<34&&(Math.abs(dx)<26*rg||(Math.sign(dx)===p.f&&Math.abs(dx)<70*rg))){ e.alive=false; e.poof=0; n++; } }
+        if(n) A.sfx.stomp(); if(!S.flags.roared){ S.flags.roared=1; save(); setTimeout(()=>{ if(!dlgOpen()&&(MODE==="stage"||MODE==="ch3"||MODE==="camp")) say([["leon","Easy, little ones. I don't need to be loud to be heard... but it does clear the path."]]); },500); }
         return true; } }
     else if(!p.pounce){ p.pounce=true; p.vx=p.f*190; p.vy=Math.max(p.vy,250); p.boost=0.6; A.sfx.pounce(); return true; } }
   return false; }
@@ -663,7 +669,7 @@ function eraDrawLeon(p,opts,sp,h){ const o=Object.assign({era:ERA},opts);
   for(const g of p.ghosts||[]){ ctx.globalAlpha=0.35*(1-g.t/0.22); sprDraw(ctx,"leon",g.x,g.y,Object.assign({},o,{f:g.f}),sp); } ctx.globalAlpha=opts.alpha==null?1:opts.alpha;
   let rot=0; if(!S.rm){ if(p.flipT>0) rot=p.f*Math.PI*2*(1-p.flipT/0.38); else if(p.pounce) rot=p.f*0.38; }
   if(rot){ ctx.save(); ctx.translate(p.x,p.y-h/2); ctx.rotate(rot); ctx.translate(-p.x,-(p.y-h/2)); sprDraw(ctx,"leon",p.x,p.y,o,sp); ctx.restore(); } else sprDraw(ctx,"leon",p.x,p.y,o,sp); ctx.globalAlpha=1; }
-function eraDrawFx(fx){ for(const r of fx.roars){ r.t+=DT; const k=r.t/0.55, rad=S.rm?26:8+k*78, a=(1-k)*(S.rf?0.25:0.45);
+function eraDrawFx(fx){ for(const r of fx.roars){ r.t+=DT; const k=r.t/0.55, rad=(S.rm?26:8+k*78)*(0.75+0.25*(r.pw||1)), a=(1-k)*(S.rf?0.25:0.45);
     ctx.strokeStyle="rgba(255,236,190,"+a+")"; ctx.lineWidth=2; for(let i=0;i<3;i++){ const rr=rad-i*9; if(rr<=2) continue; ctx.beginPath(); ctx.arc(r.x,r.y,rr,r.f>0?-0.9:Math.PI-0.9,r.f>0?0.9:Math.PI+0.9); ctx.stroke(); } }
   fx.roars=fx.roars.filter(r=>r.t<0.55); }
 /* ===== the village of Sunhollow (hub) ===== */
@@ -686,7 +692,7 @@ const VOBJ=[
  {id:"herb",x:1212,w:26,label:"BRAMBLE & BALM - HERBALIST",fn:()=>herbMenu()},
  {id:"musicbox",x:1324,w:18,label:"THE TIN LULLABY - MUSIC BOXES",fn:()=>musicMenu()},
  {id:"shrine",x:1462,w:26,label:"THE LITTLE STAR SHRINE",fn:()=>shrineMenu()},
- {id:"longroad",x:1572,w:14,label:"THE LONG ROAD",fn:()=>say(S.done.c3?[["sign","THE LONG ROAD. (the road ends in a soft wall of static. Something on the other side is humming.)"],["leon","Chapter four, huh. ...Not yet."]]:[["sign","THE LONG ROAD - CLOSED FOR REPAIRS. (no-one is repairing it)"]])}];
+ {id:"longroad",x:1572,w:14,label:"THE LONG ROAD",fn:()=>{ if(S.done.c3) longRoadMenu(); else say([["sign","THE LONG ROAD - CLOSED FOR REPAIRS. (no-one is repairing it)"]]); }}];
 const VNPC=[
  /* chapter 1: Fen is the only companion. Leia, Kael, Little Si and the rest of the crew arrive much later in the story. */
  /* v6: everyone keeps a day/night schedule (village2.js SCHED) and walks to it. Kael visits Lantern Row in the evenings after chapter 2. */
@@ -696,12 +702,13 @@ function npcInit(){ for(const n of VNPC){ const e=schedAt(n.who); n.y=n.y||GY+4;
 function villageEnter(fromStage){ ERA="adult"; MODE="village"; setBodyMode("game"); closeMenu(); READ=null; CAFE.on=false; SS.on=false;
   const r=Math.random(); VL.weather=r<0.5?"clear":r<0.75?"rain":"petals"; if(fromStage==="s1") VL.weather="clear";
   VL.rain=[]; VL.petals=[]; VL.flies=[]; for(let i=0;i<60;i++) VL.rain.push({x:Math.random()*W,y:Math.random()*H,v:220+Math.random()*80}); for(let i=0;i<24;i++) VL.petals.push({x:Math.random()*W,y:Math.random()*H,o:Math.random()*6}); for(let i=0;i<16;i++) VL.flies.push({x:Math.random()*VW,y:GY-10-Math.random()*50,o:Math.random()*6});
-  if(fromStage){ VL.x=940; VL.f=-1; } VL.y=GY; npcInit(); A.play(daylight(S.tod)>0.4?"vday":"vnight"); A.wrong=S.done.s1?0.35:0; save();
+  if(fromStage){ VL.x=fromStage==="camp"?1540:940; VL.f=-1; } VL.y=GY; npcInit(); A.play(daylight(S.tod)>0.4?"vday":"vnight"); A.wrong=S.done.s1?0.35:0; save();
   if(!S.flags.met){ S.flags.met=1; save(); setTimeout(()=>{ if(MODE==="village"&&!dlgOpen()) say(INTRO_LINES); },700); }
   // the naming plays once stage 1 is done and he hasn't been named yet: covers saves that cleared it before v3 (v1 saves) and a naming scene left half-way
   else if(S.done.s1&&!S.flags.simba){ S.flags.postS1=1; save(); const go=()=>{ if(MODE==="village"&&!dlgOpen()) say(POST_S1,()=>{ S.flags.simba=1; save(); }); }; if(fromStage==="s1") go(); else setTimeout(go,700); }
   else if(fromStage==="c2"&&!S.flags.postC2){ S.flags.postC2=1; save(); say([["fen","Well, well. Somebody's been remembering being sixteen. You've got firefly dust on your nose, S- ...love."],["leon","...I wasn't remembering. I was just... checking it was still there."],["fen","It's still there, love. All of it. Even the awkward bits. Especially those."]]); }
-  else if(fromStage==="c3"&&!S.flags.postC3){ S.flags.postC3=1; save(); say([["fen","You're back. Your eyes are red. ...I'm not going to ask. I'm just going to stand here, very close, being tall."],["leon","He never blamed me, Fen."],["fen","No. I don't think anybody who loved you ever did."],["sign","(somewhere behind the cottage, the old song plays two notes, and stops)"]]); } }
+  else if(fromStage==="c3"&&!S.flags.postC3){ S.flags.postC3=1; save(); say([["fen","You're back. Your eyes are red. ...I'm not going to ask. I'm just going to stand here, very close, being tall."],["leon","He never blamed me, Fen."],["fen","No. I don't think anybody who loved you ever did."],["sign","(somewhere behind the cottage, the old song plays two notes, and stops)"]],()=>{ if(!S.comp) compAfterC3(); }); }
+  else if(S.done.c3&&!S.comp&&!S.flags.compAsk){ setTimeout(()=>{ if(MODE==="village"&&!dlgOpen()&&!MENU) compAfterC3(); },700); } }
 const INTRO_LINES=[["pub","WELCOME TO SUNHOLLOW, THE ALL-NEW HUB VILLAGE OF STAR LION 2! (REMASTERED!)"],
  ["fen","LEON! There he is. My sterling partner, freshly remastered. Look at you. Every hair exactly where it belongs."],
  ["leon","Fen. It's so quiet. Where is everybody?"],
@@ -1096,7 +1103,7 @@ function optItems(back){ return [
   {label:()=>"REDUCE FLASHING: "+(S.rf?"ON":"OFF"),fn:()=>setRF(!S.rf)},
   {label:()=>"REDUCE MOTION: "+(S.rm?"ON":"OFF"),fn:()=>setRM(!S.rm)},
   {label:"BACK",fn:back}]; }
-function pauseMenu(){ const inStage=MODE==="stage"||MODE==="ch2"||MODE==="ch3"; openMenu({title:"PAUSED",w:200,items:[{label:"RESUME",fn:()=>closeMenu()},{label:"OPTIONS",fn:()=>openMenu({title:"OPTIONS",w:210,items:optItems(()=>pauseMenu()),back:()=>pauseMenu()})},
+function pauseMenu(){ const inStage=MODE==="stage"||MODE==="ch2"||MODE==="ch3"||MODE==="camp"; openMenu({title:"PAUSED",w:200,items:[{label:"RESUME",fn:()=>closeMenu()},{label:"OPTIONS",fn:()=>openMenu({title:"OPTIONS",w:210,items:optItems(()=>pauseMenu()),back:()=>pauseMenu()})},
   inStage?{label:"RETURN TO VILLAGE",fn:()=>{ closeMenu(); villageEnter(); }}:{label:"TITLE SCREEN",fn:()=>{ closeMenu(); titleEnter(); }},
   {label:"CREDITS",fn:()=>openRead("CREDITS",BOOKS.find(b=>b.id==="credits").x,()=>pauseMenu())}],foot:"(c) 2026 SOL & LUNA STUDIO - LEON S K."}); }
 /* ===== Halcyon Bright publisher intro (fictional publisher) ===== */
@@ -1610,7 +1617,7 @@ function spUpdate(dt,o){ const p=SP.p, ph=ERA_PHYS[ERA]; o=o||{};
   if(SP.shake>0) SP.shake-=dt;
   if(SP.fade>0){ SP.fade-=dt; if(SP.fell&&SP.fade<0.45){ SP.fell=false; p.x=SP.cp; p.y=spSolidY(SP.cp); p.vx=p.vy=0; p.inv=1; if(o.onFall) o.onFall(); } if(SP.fell) return; }
   if(AUTO) spAuto(o);
-  const dir=SP.lock?0:(held("r")?1:0)-(held("l")?1:0), max=ph.max;
+  const dir=SP.lock?0:(held("r")?1:0)-(held("l")?1:0), max=o.maxV||ph.max;
   if(p.boost>0){ if(dir&&!p.pounce) p.f=dir; } else if(dir){ p.vx=clamp(p.vx+dir*(p.on?1100:760)*dt,-max,max); p.f=dir; } else { const fr=1000*dt; p.vx=Math.abs(p.vx)<=fr?0:p.vx-Math.sign(p.vx)*fr; }
   if(!SP.lock&&(take("j")||take("a"))) p.jb=0.13; else p.jb-=dt; p.coy=p.on?0.1:p.coy-dt;
   if(p.jb>0&&p.coy>0){ p.vy=-ph.jump; p.on=false; p.coy=0; p.jb=0; p.plat=null; A.sfx.jump(); }
@@ -1970,6 +1977,249 @@ function ch3PoolDraw(){ const Q=C3.pool, cx=W/2+20, wy=152;
 
 /* ================= CHAPTER 4 — teased ================= */
 function ch4Tease(){ say([["sign","CHAPTER_4.SEG ......... FILE NOT FOUND"],["sign","(the file is warm, like something has been sleeping in it)"],["???","not yet."]]); }
+/* ===== v12 COMPANIONS + THE CAMP INTERLUDE (after chapter 3; groundwork for chapter 4) =====
+   S.comp  : null | "fen" | "kael" | "si" | "solo"  - per save file, null until chosen (old saves migrate as null)
+   S.trust : {fen,kael,si} 0..6 - grows by talking and by things done together. SOLO uses S.camp.growth (trusting himself).
+   Leon's ROAR power = 1 + trust/2 (max 3): wider reach, and it unknots old spells faster.
+   Change companion at the Long Road, the campfire, or any lit lantern (checkpoint). Atmospheric, SFW; scares are shadows only. */
+const COMPS=["fen","kael","si","solo"];
+const COMP={
+ fen:{n:"FEN",tag:"Partner. Loud, warm, and always on your side.",face:"fen_happy",
+   buff:["+ COURAGE: SHORTER FREEZES","+ SONG: MOTHS DRIFT SLEEPY","+ TENDER, NAME-KEEPING SCENES"],nerf:["- LOUD TOGETHER: HARD TO SNEAK"],hp:3,freeze:0.45,noise:1.9,moth:0.45},
+ kael:{n:"KAEL",tag:"Steady older protector. Jokes to hide worry.",face:"kael_neutral",
+   buff:["+ STRENGTH: 2 EXTRA HEARTS","+ SHOULDER: CLEARS SOME BLOCKS"],nerf:["- SKIPS SOME PUZZLES","- FEWER SOLO GROWTH MOMENTS"],hp:5,freeze:1.0,noise:1.15,moth:1},
+ si:{n:"LITTLE SI",tag:"The cub you were. Sees what you forgot.",face:"si_happy",
+   buff:["+ SEES HIDDEN MEMORIES","+ SECRET PAWPRINTS"],nerf:["- LEON IS MORE FRAGILE: 2 HEARTS","- SCARES MORE EASILY"],hp:2,freeze:1.9,noise:0.9,moth:1},
+ solo:{n:"SOLO",tag:"Just you, and the voice that sounds like you.",face:"leon_adult_worried",
+   buff:["+ MOST REFLECTION SCENES","+ AN INNER VOICE WALKS WITH YOU"],nerf:["- HARDEST: NO HELP AT ALL","- LONGEST FREEZES"],hp:3,freeze:1.5,noise:0.6,moth:1}};
+function compTrust(c){ c=c||S.comp; if(!c) return 0; if(c==="solo") return clamp((S.camp&&S.camp.growth)||0,0,6); return clamp((S.trust&&S.trust[c])||0,0,6); }
+function roarPower(c){ return 1+Math.min(2,Math.floor(compTrust(c)/2)); }
+function trustAdd(c,d){ if(!c||!d) return; if(c==="solo"){ S.camp.growth=clamp((S.camp.growth||0)+d,0,6); } else { S.trust[c]=clamp((S.trust[c]||0)+d,0,6); } save(); }
+function pips(x,y,n,max,c){ for(let i=0;i<max;i++) px(ctx,x+i*5,y,4,4,i<n?(c||"#ffd36a"):"rgba(255,255,255,0.18)"); }
+
+/* ---------- companion select ---------- */
+const CS={sel:0,prev:null,done:null,t:0};
+function compSelect(done){ CS.prev=MODE; CS.done=done||null; CS.t=0; CS.sel=Math.max(0,COMPS.indexOf(S.comp)); MODE="comp"; setBodyMode("game"); closeMenu(); }
+function compLeave(c){ MODE=CS.prev; const d=CS.done; CS.done=null; if(d) d(c); }
+function compUpdate(dt){ CS.t+=dt; if(dlgOpen()) return dlgUpdate(dt);
+  if(take("u")||take("l")){ CS.sel=(CS.sel+3)%4; A.sfx.uiMove(); } if(take("d")||take("r")){ CS.sel=(CS.sel+1)%4; A.sfx.uiMove(); }
+  if(okP()){ const c=COMPS[CS.sel]; S.comp=c; S.camp.picks=(S.camp.picks||0)+1; save(); A.sfx.uiOk(); compLeave(c); return; }
+  if(backP()){ if(S.comp){ A.sfx.uiBack(); compLeave(null); } else A.sfx.uiNo(); } }
+function compFace(c,x,y,k,dim){ const nm=COMP[c].face; ctx.save(); ctx.translate(x,y); ctx.scale(k,k); if(c==="solo"){ ctx.globalAlpha=0.55; } drawBust(ctx,nm,0,0,0); ctx.restore(); ctx.globalAlpha=1; }
+// touch landscape: the d-pad can sit over the left of the picture; measure it against the letterboxed canvas (same idea as fsInset)
+function compInsetL(){ if(!isTouch) return 0; const r=cv.getBoundingClientRect(); if(!r.width) return 0;
+  const sc=Math.min(r.width/W,r.height/H), left=r.left+(r.width-W*sc)/2, top=r.top+(r.height-H*sc)/2, yT=top+26*sc, yB=top+150*sc; let L=0;
+  for(const id of ["bL","bR","bU","bD"]){ const e=document.getElementById(id); if(!e||!e.offsetParent) continue; const b=e.getBoundingClientRect(); if(b.top>yB||b.bottom<yT) continue; if(b.right>left&&b.left<left+W*sc/2) L=Math.max(L,Math.ceil((b.right-left)/sc)+3); }
+  return L; }
+function drawComp(){ ctx.fillStyle="#120c1e"; ctx.fillRect(0,0,W,H);
+  const r=mulberry(11); for(let i=0;i<46;i++){ const a=S.rf?0.55:0.35+0.35*Math.sin(T*1.3+i*1.7); px(ctx,r()*W,r()*H*0.7,1,1,"rgba(255,244,220,"+a+")"); }
+  drawText(ctx,"WHO WALKS WITH YOU?",W/2,6,{align:"center",s:2,c:"#ffd36a"});
+  const IL=compInsetL(), compact=IL>4; CS.compact=compact; CS.IL=IL;
+  if(compact) COMPS.forEach((c,i)=>{ const y=26+i*31, on=i===CS.sel, x=IL; panel(x,y,30,28,on?"rgba(74,46,96,0.97)":"rgba(30,20,40,0.9)");
+    ctx.save(); ctx.beginPath(); ctx.rect(x+3,y+3,24,22); ctx.clip(); compFace(c,x+1,y+1,0.42); ctx.restore(); if(on) starIcon(ctx,x+26,y+23,2.2); if(c===S.comp) px(ctx,x+3,y+24,6,2,"#9ae08a"); });
+  else COMPS.forEach((c,i)=>{ const y=26+i*31, on=i===CS.sel; panel(5,y,90,28,on?"rgba(74,46,96,0.97)":"rgba(30,20,40,0.9)");
+    ctx.save(); ctx.beginPath(); ctx.rect(9,y+3,24,22); ctx.clip(); compFace(c,7,y+1,0.42); ctx.restore();
+    if(on) starIcon(ctx,89,y+21,2.4);
+    drawText(ctx,COMP[c].n,36,y+5,{c:on?"#ffd36a":"#d8c8e8"});
+    if(c===S.comp) drawText(ctx,"WITH YOU",36,y+16,{c:"#9ae08a"}); else pips(36,y+17,compTrust(c),6,c==="solo"?"#b8d8ff":"#ff8aa8"); });
+  const c=COMPS[CS.sel], C=COMP[c], dx=compact?Math.min(IL+33,W-6-216)-98:0; ctx.save(); ctx.translate(dx,0); panel(98,26,216,124,"rgba(28,18,38,0.96)");
+  bustCard(ctx,104,32,60,54,false); ctx.save(); ctx.beginPath(); ctx.rect(104,32,60,54); ctx.clip(); compFace(c,104,30,1); ctx.restore();
+  const big=C.n.length<=5; drawText(ctx,C.n,170,33,{c:"#ffd36a",s:big?2:1});
+  wrap(C.tag.toUpperCase(),23).slice(0,3).forEach((l,k)=>drawText(ctx,l,170,(big?50:44)+k*9,{c:"#e8dcc8"}));
+  drawText(ctx,c==="solo"?"SELF-TRUST":"TRUST",170,79,{c:"#b8a8c8"}); pips(232,80,compTrust(c),6,c==="solo"?"#b8d8ff":"#ff8aa8");
+  let y=92; for(const l of C.buff){ drawText(ctx,l,104,y,{c:"#9ae08a"}); y+=10; } for(const l of C.nerf){ drawText(ctx,l,104,y,{c:"#ff9a8a"}); y+=10; }
+  drawText(ctx,"ROAR POWER",104,138,{c:"#ffe0a0"}); for(let i=0;i<3;i++) starIcon(ctx,172+i*9,141,3.2,i<roarPower(c)?"#ffd84a":"rgba(255,255,255,0.2)"); ctx.restore();
+  drawText(ctx,(isTouch?"A":"ENTER")+": WALK TOGETHER"+(S.comp?"  "+(isTouch?"B":"ESC")+": BACK":""),W/2,H-15,{align:"center",c:"#b8a8c8"});
+  dlgDraw(); }
+const COMP_PICK={fen:[["fen","Me? Really? ...I'm going to be completely insufferable about this.","happy"]],
+ kael:[["kael","Ha! Good call. I'll carry the heavy stuff. Which is all of it.","happy"]],
+ si:[["si","YES! Okay. Okay. I'll be very brave. Medium brave.","happy"]],
+ solo:[["inner","Just us, then."],["leon","Just me. ...It's okay. They'll be here when I come back."]]};
+/* after chapter 3 (and once, for older saves that already cleared it): the choice by the Long Road */
+function compAfterC3(){ S.flags.compAsk=1; save();
+  say([["sign","(that night, two lions wait by the Long Road: one tall and crimson, one dark-maned and grinning.)"],["sign","(a small red tuft peeks out from behind the signpost.)"],
+       ["fen","Whoever you pick, love, the rest of us still love you. ...But pick me."],["kael","Don't listen to him. Or do. I'm easy.","happy"],["si","Pick me! I'm small! I fit in pockets!"],["leon","...Or I could walk it alone. For a while."]],
+      ()=>compSelect(c=>{ say(COMP_PICK[c]||[],()=>campOffer()); })); }
+function campOffer(){ openMenu({title:"MAKE CAMP ON THE LONG ROAD?",w:220,items:[{label:"YES - MAKE CAMP",fn:()=>{ closeMenu(); campEnter(); }},{label:"LATER",fn:()=>{ closeMenu(); say([["sign","(the Long Road will wait. It's good at that.)"]]); }}]}); }
+function longRoadMenu(){ openMenu({title:"THE LONG ROAD",w:220,items:[{label:"MAKE CAMP (INTERLUDE)",fn:()=>{ closeMenu(); if(S.comp) campEnter(); else compSelect(c=>say(COMP_PICK[c]||[],()=>campEnter())); }},
+  {label:"CHOOSE COMPANION",right:()=>S.comp?COMP[S.comp].n:"-",fn:()=>{ closeMenu(); compSelect(c=>{ if(c) say(COMP_PICK[c]||[]); }); }},{label:"LEAVE",fn:()=>closeMenu()}]}); }
+
+/* ---------- the camp: a short night walk out of Sunhollow ---------- */
+const CP={};
+const CAMP_G=150;
+function campEnter(){ SC.steps=[]; SC.wait=0; AUTO=false; pad.r=false; MODE="camp"; setBodyMode("game"); closeMenu(); READ=null; SS.on=false; DLG.q=[]; DLG.cur=null; ERA="adult";
+  if(!S.comp) S.comp="solo";
+  const L=150, G=CAMP_G, top=new Array(L).fill(G), pit=(a,b)=>{ for(let i=a;i<=b;i++) top[i]=null; }, hill=(a,b,h)=>{ for(let i=a;i<=b;i++) top[i]=G-h; };
+  hill(20,23,14); pit(27,29); hill(33,36,20); pit(52,53); hill(90,93,18); pit(118,120); hill(132,149,10);
+  const foes=[[18,120],[25,112],[31,110],[37,104],[106,112],[124,108]].map(([t,y])=>({x0:t*TS,y0:y,x:t*TS,y,r:16,sp:1.1+((t*7)%5)*0.15,alive:true}));
+  spMake({len:L*TS,top,foes,lan:[{x:44*TS},{x:76*TS},{x:101*TS}],plats:[{x:86*TS,y:G-34,w:3*TS}],items:[]});
+  SP.fade=0.8; SP.cp=4*TS;
+  const C=COMP[S.comp];
+  Object.assign(CP,{t:0,card:2.6,phase:"walk",hpMax:C.hp,hp:C.hp,noise:0,frz:0,frzTold:0,wakes:0,gloamT:0,chatT:3,whisper:"",whT:0,shadow:-1,
+    fire:{x:6*TS},boulder:{x:40*TS,gone:false},sneak:{a:48*TS,b:74*TS},gloam:{x:63*TS,awake:0},
+    runes:[{x:82*TS,y:G,lit:false},{x:87.5*TS,y:G-34,lit:false},{x:91.5*TS,y:G-18,lit:false}],gate:{x:96*TS,open:0,how:null},
+    knot:{x:112*TS,hp:6,max:6,gone:false},look:{x:142*TS},
+    scares:[{x:58*TS,done:false}].concat(S.comp==="si"?[{x:21*TS,done:false},{x:68*TS,done:false},{x:107*TS,done:false}]:[]),
+    paws:S.comp==="si"?[{x:12*TS,i:0},{x:46*TS,i:1},{x:84*TS,i:2}]:[], puddles:[{x:47*TS,i:0},{x:103*TS,i:1},{x:128*TS,i:2}],
+    seen:{},clearT:0,doneShown:false,trust0:compTrust(),growth0:S.camp.growth||0});
+  campWall(96,97,true); campWall(112,113,true);
+  A.stop(); A.ambSet({crickets:0.45,wind:0.2,fountain:0}); A.wrong=0.2;
+  campFire(); }
+function campWall(a,b,on){ for(let i=a;i<=b;i++) SP.top[i]=on?CAMP_G-82:CAMP_G; }
+const CAMP_FIRE={
+ fen:{l:[["fen","Camp! Look at us. Two lions, one fire, no chaperones. ...I'm joking. Mostly.","happy"],["leon","Thank you for coming, Fen. Out here it's loud. In my head, I mean."],["fen","Then I'll be louder. Lean on me. Go on. I'm warm, I'm tall, I'm extremely good at this."]],
+  c:[["LEAN ON HIM",2,[["sign","(Leon leans into Fen's shoulder. The fire pops. For a long while nobody says anything, and nothing needs saying.)"],["fen","...There. That's my favourite S- ...my favourite lion."]]],
+     ["TALK ABOUT THE POOL",1,[["leon","At the Falls, the water... I think it was him, Fen."],["fen","Maybe. Or maybe it was you, old enough now to look like someone who loved you. Either way, you're not carrying it alone."]]],
+     ["JUST WATCH THE FIRE",0,[["fen","Fire-watching. Classic. Wake me if it does anything dramatic."]]]]},
+ kael:{l:[["kael","Fire's going. First watch is mine. You sleep, I'll stare at the dark until it gets embarrassed."],["leon","You don't have to look after me, Kael."],["kael","I know. I like being useful. ...And if I stop joking, I start worrying. So: joke. What do you call a lion who never sleeps? Me. Tonight.","happy"]],
+  c:[["ASK WHAT WORRIES HIM",2,[["kael","...The Falls. You walked in front of me and I let you. That's backwards. I'm supposed to be the shoulder.","worried"],["leon","You were. You still are. I just needed to see something first."],["kael","Okay. Okay. ...Snacks? They're only a little crushed."]]],
+     ["LAUGH AT THE JOKE",1,[["kael","HA! See, this is why I keep you around. Best audience in the valley.","happy"]]],
+     ["SAY GOODNIGHT",0,[["kael","Night, {N}. I've got the dark."]]]]},
+ si:{l:[["si","Is this a camp? A real one? Can we stay up? Can we count the stars? I already did. There's LOTS.","happy"],["leon","...Hi, little me. You were braver than I remember."],["si","I wasn't brave. I was just small. Small is scary, but small fits through things. Like memories!"]],
+  c:[["HOLD HIS PAW",2,[["sign","(the little paw is warm. It feels like a summer from a long time ago.)"],["si","You're big now. Did it hurt? Getting big?"],["leon","Sometimes. But I'm glad you're here."]]],
+     ["ASK WHAT HE REMEMBERS",1,[["si","Fireflies. A big warm shadow. A song with no words. ...I hid some things out here! I'll show you!","happy"]]],
+     ["TELL HIM TO SLEEP",0,[["si","Okay... but I'm sleeping with ONE eye open. Like a big lion."]]]]},
+ solo:{l:[["sign","(the fire is small. It's enough.)"],["leon","Just me, then."],["inner","Just you. You always say that like it isn't enough."]],
+  c:[["ANSWER THE VOICE",2,[["leon","Maybe it is enough. I'd like to find out."],["inner","Then walk. I'll be the quiet part."]]],
+     ["SIT WITH IT",1,[["sign","(he sits with the voice the way you sit with weather. It passes, a little.)"]]],
+     ["TELL IT TO HUSH",0,[["inner","Hushing. ...I'm still here, though. I'm you."]]]]}};
+function campFire(){ const F=CAMP_FIRE[S.comp]; if(CP.seen.fire){ return; } CP.seen.fire=1; SP.lock=true;
+  scRun([waitS(2.5),sayS(F.l),choice("BY THE FIRE",F.c.map(o=>[o[0],()=>{ trustAdd(S.comp,o[1]); CP.fireChoice=o[0]; },o[2]])),
+    ()=>{ SP.lock=false; say([["sign","("+(isTouch?"^":"UP")+" by the fire or a lit lantern: rest, or change who walks with you. "+(isTouch?"B":"C")+": roar. The roar grows with trust.)"]]); return "dlg"; }]); }
+/* lines for each moment, per companion */
+const CAMP_L={
+ freeze:{fen:[["fen","Hey. Hey. I'm here. Breathe with me. In... out. There he is."]],kael:[["kael","I've got you. Take your time. The dark isn't going anywhere, and neither am I."]],si:[["si","It's just a shadow. It's just a shadow. ...Is it just a shadow?","scared"],["leon","...It's just a shadow. Breathe, little one. Both of us."]],solo:[["inner","You froze. That's allowed. Count the lanterns. One. Two. ...Now take one step."]]},
+ gloam:{fen:[["gloam","WHO GOES THERE? Name yourself, little star."],["fen","He's Leon. That's all you get. The rest of his name is mine to keep safe."],["gloam","Hmph. Loud AND loyal. Go back and try that again, quieter."]],
+        kael:[["gloam","WHO GOES THERE? ...Hmph. Two big lions stomping. Go back and try that again, quieter."],["kael","Sorry. I walk like furniture."]],
+        si:[["gloam","WHO GOES THERE? ...Oh. A little one. Go back, both of you, and try it quieter."],["si","Sorry, Mister Owl!"]],
+        solo:[["gloam","WHO GOES THERE? ...Hmph. One lion, alone, stomping. Go back and try that again, quieter."]]},
+ sneak:{fen:[["fen","(whispering) Okay. Okay. Hold DOWN to creep. I'm going to be SO quiet. Watch me be quiet."]],kael:[["kael","(low) Old Gloam. Sleeps light. Hold DOWN to creep, and don't land heavy."]],si:[["si","(whisper) There's a big owl. Hold DOWN to creep. I'm the best at being small."]],solo:[["inner","A sleeping warden. Hold DOWN to creep. You're good at being quiet. Too good, sometimes."]]},
+ gate:{kael:[["kael","Old gate. Runes on it, see? ...Or I could just lean on it. UP, and I will."]],fen:[["fen","Runes. Your thing. You see the hidden stuff, love. Roar near each one."]],si:[["si","Glowy marks! Roar at them! Roar at all of them!"]],solo:[["inner","Three runes. You saw them before anyone told you they were there. Roar near each one."]]},
+ gateK:[["kael","Puzzle? Nah. Stand back."],["sign","(Kael lowers his shoulder and walks straight through the old gate. It folds like wet bread.)"],["leon","Kael, I think the runes were-"],["kael","Were. Past tense. ...You'd have figured it out, you know. Next one's yours.","happy"]],
+ gateDone:{fen:[["fen","Look at you, reading the world like a book. ...That's so attractive. Sorry. Focus."]],si:[["si","You DID it! I knew big me could do it!","happy"]],solo:[["inner","That was yours. Nobody handed it to you. Keep it."]]},
+ knot:{fen:[["fen","That's an old fear, tied in a knot. Roar at it, love. I'll sing under you."]],kael:[["kael","Tied with old fear. Roar at it. I'll stand right behind you."]],si:[["si","It's a scary knot. But you're bigger than it. Roar!"]],solo:[["inner","An old knot. Roar. The more you trust yourself, the louder it lands."]]},
+ knotDone:{fen:[["fen","You hear that? That was you. Loud, for once. I love it."]],kael:[["kael","That's my brother. ...Told you I'd be behind you."]],si:[["si","WOW. Can I do that when I'm big?"],["leon","You will. You did."]],solo:[["inner","Louder than you thought. Quieter than you feared. That's about right."]]},
+ boulder:[["kael","Rock in the way? Rock's not in the way. Watch."],["sign","(Kael shoulders the boulder aside. Underneath: a star, pressed into the clay, as if someone hid it for later.)"]],
+ boulderNo:{fen:[["fen","That rock's got something under it. I'd lift it, but my nails."]],si:[["si","There's a star under the rock! I can smell it. ...Can stars smell?"]],solo:[["inner","Something under the rock. Too heavy alone. Not everything has to be."]]},
+ paw:[[["si","Pawprint! I hid this one. Look closer."],["sign","(a memory: a big bronze paw beside a small one, pressed into wet clay. Someone laughing, kind.)"]],
+      [["si","Another one! This is where I hid the song."],["sign","(a memory: a lullaby hummed through a mane, so close it's warm.)"]],
+      [["si","Last one. I didn't want you to lose this."],["sign","(a memory: a lantern, whole and bright, before anything cracked.)"],["leon","...I forgot it was ever whole."]]],
+ puddle:[[["inner","Look. That's you in the water. No one else this time."],["leon","...He looks tired."],["inner","He looks like he's still going."]],
+         [["inner","You froze back there. You also kept walking. Write that one down."]],
+         [["inner","The Falls showed you someone else. This puddle only shows you. Both can be true."]]],
+ end:{fen:[["fen","Whatever's past that static, love, I'm walking in loud. Next to you. Always next to you."]],kael:[["kael","Chapter four, huh. I'll pack extra snacks. And a bigger shoulder."]],si:[["si","Is the next part scary? ...I'll hold your tail."]],solo:[["inner","Next time, maybe you'll let someone come. Or maybe not. Either way, you'll be there."]]}};
+function campSay(k,cb){ const v=CAMP_L[k]; const l=Array.isArray(v)?v:(v&&v[S.comp]); if(l&&l.length) say(l,cb); else if(cb) cb(); }
+function campNear(){ const p=SP.p; if(Math.abs(p.x-CP.fire.x)<26) return "fire"; for(const L of SP.lan) if(L.lit&&Math.abs(p.x-L.x)<20) return "lantern"; if(!CP.boulder.gone&&Math.abs(p.x-CP.boulder.x)<26) return "boulder"; if(S.comp==="kael"&&!CP.gate.open&&Math.abs(p.x-(CP.gate.x-8))<34) return "gate"; return null; }
+function campRest(){ openMenu({title:"REST A MOMENT",w:220,items:[{label:"CHANGE COMPANION",right:()=>COMP[S.comp].n,fn:()=>{ closeMenu(); const was=S.comp; compSelect(c=>{ if(c&&c!==was){ campSwap(was); say(COMP_PICK[c]||[]); } }); }},
+  {label:"REST (REFILL HEARTS)",fn:()=>{ closeMenu(); CP.hp=CP.hpMax; A.sfx.cp(); }},{label:"KEEP GOING",fn:()=>closeMenu()}]}); }
+function campSwap(was){ const C=COMP[S.comp]; CP.hpMax=C.hp; CP.hp=C.hp; CP.noise=0;
+  CP.scares=CP.scares.filter(s=>s.done||s.x===58*TS); if(S.comp==="si") for(const x of [21,68,107]) if(SP.p.x<x*TS) CP.scares.push({x:x*TS,done:false});
+  CP.paws=S.comp==="si"?[{x:12*TS,i:0},{x:46*TS,i:1},{x:84*TS,i:2}].filter(q=>!S.camp.mem[q.i]&&q.x>SP.p.x-20):[]; }
+function campHurt(){ CP.hp--; if(CP.hp<=0){ CP.hp=CP.hpMax; SP.fell=true; SP.fade=0.9; CP.down=(CP.down||0)+1;
+    setTimeout(()=>{ if(MODE==="camp") say([["sign","(his legs give out. He wakes by the last lantern, "+(S.comp==="solo"?"alone, and okay.":"and someone is right there.")+")"]]); },900); } }
+function campUpdate(dt){ CP.t+=dt; if(CP.card>0) CP.card-=dt; if(READ) return readUpdate(); if(MENU) return menuUpdate(); if(dlgOpen()){ dlgUpdate(dt); return; } scTick(dt);
+  if(take("p")){ pauseMenu(); return; }
+  if(CP.phase==="clear"){ CP.clearT+=dt; if(CP.clearT>1.4&&okP()) villageEnter("camp"); return; }
+  const p=SP.p, C=COMP[S.comp], pw=roarPower(); SP.fx.power=pw;
+  // freeze (Leon's weakness): a shadow passes and he can't move for a moment; shorter with courage
+  if(CP.frz>0){ CP.frz-=dt; SP.lock=true; p.vx=0; if(CP.frz<=0){ SP.lock=false; if(!CP.frzTold){ CP.frzTold=1; campSay("freeze"); } } }
+  if(CP.shadow>=0){ CP.shadow+=dt; if(CP.shadow>2.4) CP.shadow=-1; }
+  for(const s of CP.scares) if(!s.done&&p.x>s.x){ s.done=true; CP.shadow=0; CP.frz=C.freeze; CP.frzN=(CP.frzN||0)+1; if(S.js&&A.ctx){ A.tone(58,A.now(),1.2,"sine",0.05,{att:0.25}); if(A.sfx.heart) A.sfx.heart(0.8); } }
+  // creeping: hold DOWN in the warden's hollow
+  const inSneak=p.x>CP.sneak.a&&p.x<CP.sneak.b&&!(CP.gloam.awake>0), creep=held("d")&&p.on;
+  // moths drift sleepy with Fen's song
+  for(const e of SP.foes){ if(e.sp0==null) e.sp0=e.sp; e.sp=e.sp0*C.moth; }
+  spUpdate(dt,{maxV:creep?34:0,onHurt:()=>campHurt(),onFall:()=>{ CP.noise=0; },onLantern:(L)=>{ A.sfx.cp(); }});
+  if(inSneak){ const sp=Math.abs(p.vx)/96; CP.noise+=dt*(creep?0.03:0.06+0.55*sp*sp)*C.noise; if(!p.on&&p.vy>200) CP.noise+=dt*0.4*C.noise;
+    if(S.comp==="fen"){ CP.chatT-=dt; if(CP.chatT<=0){ CP.chatT=3.6; CP.noise+=0.1; CP.whisper=["(psst) is this whispering?","(psst) your tail is SO fluffy","(psst) sorry. that was a giggle","(psst) look how quiet I am"][(CP.whN=(CP.whN||0)+1)%4]; CP.whT=2.4; } }
+    if(!CP.seen.sneak){ CP.seen.sneak=1; campSay("sneak"); }
+    if(CP.noise>=1){ CP.noise=0; CP.wakes++; CP.gloam.awake=2.2; A.sfx.uiNo(); campSay("gloam",()=>{ p.x=CP.sneak.a-30; p.y=spSolidY(p.x); p.vx=p.vy=0; SP.cam=clamp(p.x-W*0.4,0,SP.len-W); }); } }
+  else CP.noise=Math.max(0,CP.noise-dt*0.4);
+  if(CP.gloam.awake>0) CP.gloam.awake=Math.max(0,CP.gloam.awake-dt);
+  if(CP.whT>0) CP.whT-=dt;
+  // the roar: lights runes, unknots the old spell
+  for(const r of SP.fx.roars) if(!r.camp){ r.camp=1;
+    for(const u of CP.runes) if(!u.lit&&Math.abs(u.x-p.x)<46*(0.75+0.25*pw)&&Math.abs(u.y-p.y)<40){ u.lit=true; A.sfx.chime(); }
+    const K=CP.knot; if(!K.gone&&K.x-p.x<90*(0.75+0.25*pw)&&K.x-p.x>-10){ K.hp-=pw; K.hit=0.4; if(!CP.seen.knotHit){ CP.seen.knotHit=1; } if(K.hp<=0){ K.gone=true; campWall(112,113,false); A.sfx.clear(); trustAdd(S.comp,1); campSay("knotDone"); } } }
+  if(CP.knot.hit>0) CP.knot.hit-=dt;
+  if(!CP.gate.open&&CP.runes.every(u=>u.lit)){ CP.gate.open=0.01; CP.gate.how="runes"; campWall(96,97,false); A.sfx.door(); trustAdd("solo"===S.comp?"solo":S.comp,S.comp==="solo"?1:0); S.camp.growth=clamp((S.camp.growth||0)+(S.comp==="solo"?0:1),0,6); save(); campSay("gateDone"); }
+  if(CP.gate.open>0&&CP.gate.open<1) CP.gate.open=Math.min(1,CP.gate.open+dt*0.8);
+  if(p.x>79*TS&&!CP.seen.gate){ CP.seen.gate=1; campSay("gate"); }
+  if(p.x>104*TS&&!CP.seen.knot){ CP.seen.knot=1; campSay("knot"); }
+  if(p.x>36*TS&&!CP.seen.bould&&!CP.boulder.gone&&S.comp!=="kael"){ CP.seen.bould=1; campSay("boulderNo"); }
+  for(const q of CP.paws) if(!q.got&&Math.abs(q.x-p.x)<12){ q.got=true; S.camp.mem[q.i]=1; SIDX.eggs.siMem=(SIDX.eggs.siMem||0)|(1<<q.i); save(); A.sfx.chime(); say(CAMP_L.paw[q.i]); }
+  if(S.comp==="solo") for(const q of CP.puddles) if(!q.seen&&Math.abs(q.x-p.x)<12){ q.seen=true; S.camp.refl=(S.camp.refl||0)+1; save(); say(CAMP_L.puddle[q.i]); }
+  // UP: rest / change companion at the fire or a lit lantern; Kael's shoulder at the boulder and the gate
+  const nr=campNear(); CP.near=nr;
+  if(take("u")&&nr&&!SP.lock){
+    if(nr==="fire"||nr==="lantern") campRest();
+    else if(nr==="boulder"){ if(S.comp==="kael"){ CP.boulder.gone=true; S.stars=(S.stars||0)+1; trustAdd("kael",1); A.sfx.stomp(); if(!S.rm) SP.shake=0.3; campSay("boulder"); } else { A.sfx.uiNo(); campSay("boulderNo"); } }
+    else if(nr==="gate"&&S.comp==="kael"){ CP.gate.open=0.01; CP.gate.how="shoulder"; campWall(96,97,false); A.sfx.stomp(); if(!S.rm) SP.shake=0.35; trustAdd("kael",1); campSay("gateK"); } }
+  if(p.x>CP.look.x&&CP.phase==="walk"){ CP.phase="end"; SP.lock=true; pad.r=false; AUTO=false;
+    scRun([waitS(0.8),sayS([["sign","(from the ridge, the Long Road runs on into a soft wall of static. Something past it hums the old song.)"]]),()=>{ campSay("end"); return "dlg"; },
+      ()=>{ trustAdd(S.comp,1); S.done.camp=1; S.camp.last=S.comp; S.camp.runs=(S.camp.runs||0)+1; save(); A.sfx.clear(); CP.phase="clear"; CP.clearT=0; return 0; }]); } }
+function campDraw(){ const p=SP.p, cam=SP.cam, u=p.x/SP.len;
+  if(!bgLayer(ctx,"ffmeadow",cam-(SP.len-W),0.05,0)) { ctx.fillStyle="#1a1430"; ctx.fillRect(0,0,W,H); }
+  ctx.fillStyle="rgba(6,8,30,0.62)"; ctx.fillRect(0,0,W,H);
+  const r=mulberry(5); for(let i=0;i<40;i++){ const a=S.rf?0.6:0.4+0.4*Math.sin(T*1.2+i*2.3); px(ctx,(r()*W*1.3-cam*0.02)%W,r()*80,1,1,"rgba(255,244,220,"+a+")"); }
+  if(CP.shadow>=0){ const k=CP.shadow/2.4, sx=W+40-k*(W+120); ctx.fillStyle="rgba(4,4,14,"+(0.55*Math.sin(Math.PI*k))+")"; ell(ctx,sx,40,46,9); ell(ctx,sx-30,36,26,6,ctx.fillStyle,-0.25); ell(ctx,sx+30,36,26,6,ctx.fillStyle,0.25); }
+  spDrawWorld(()=>{ const G=CAMP_G;
+    for(let t=Math.floor(cam/TS);t<=Math.floor((cam+W)/TS)+1&&t<SP.top.length;t++){ const y=SP.top[t]; if(y==null) continue; const wall=(t===96||t===97)&&!CP.gate.open||(t===112||t===113)&&!CP.knot.gone; if(wall) continue;
+      px(ctx,t*TS,y,TS,H-y,"#1a1c2a"); px(ctx,t*TS,y,TS,3,"#3a4a3a"); px(ctx,t*TS,y+3,TS,1,"#242838"); if(t%3===1) px(ctx,t*TS+5,y-2,3,2,"#2a4a2a"); }
+    // campfire
+    { const f=CP.fire, fl=S.rf?0.85:0.75+0.25*Math.sin(T*9)+0.1*Math.sin(T*23); ctx.save(); ctx.globalCompositeOperation="lighter"; const g=ctx.createRadialGradient(f.x,G-8,0,f.x,G-8,70); g.addColorStop(0,"rgba(255,170,80,"+0.32*fl+")"); g.addColorStop(1,"rgba(255,150,60,0)"); ctx.fillStyle=g; ctx.fillRect(f.x-70,G-78,140,90); ctx.restore();
+      px(ctx,f.x-9,G-3,18,3,"#4a2a1a"); px(ctx,f.x-6,G-5,12,2,"#6a3a22"); ell(ctx,f.x,G-8,5,7*fl,"#ff9a3a"); ell(ctx,f.x,G-7,3,4*fl,"#ffe08a"); }
+    // lanterns (checkpoints)
+    for(const L of SP.lan){ const y=spTopAt(L.x); px(ctx,L.x,y-26,2,26,"#2a2018"); px(ctx,L.x-3,y-30,8,6,L.lit?"#ffc26a":"#3a3028"); if(L.lit){ ctx.save(); ctx.globalCompositeOperation="lighter"; const g=ctx.createRadialGradient(L.x+1,y-27,0,L.x+1,y-27,22); g.addColorStop(0,"rgba(255,190,110,0.26)"); g.addColorStop(1,"rgba(255,190,110,0)"); ctx.fillStyle=g; ctx.fillRect(L.x-22,y-50,46,46); ctx.restore(); } }
+    // boulder
+    if(!CP.boulder.gone){ const b=CP.boulder; ell(ctx,b.x,G-9,13,10,"#4a4a52"); ell(ctx,b.x-3,G-12,7,5,"#5c5c66"); px(ctx,b.x+4,G-6,3,1,"#34343a"); } else { starIcon(ctx,CP.boulder.x,G-6,2.5,"rgba(255,216,74,0.6)"); }
+    // puddles (everyone sees water; only SOLO hears it)
+    for(const q of CP.puddles){ ell(ctx,q.x,G+1,14,2,"#2a3a6a"); px(ctx,q.x-10,G,20,1,"rgba(160,190,255,0.5)"); }
+    // Old Gloam, the sleeping warden
+    { const g=CP.gloam, gx=g.x, gy=G-30; px(ctx,gx-8,gy+8,16,22,"#2a2c34"); ell(ctx,gx,gy,16,14,"#5a5c52"); ell(ctx,gx,gy+3,11,9,"#6a6c60"); px(ctx,gx-14,gy-14,4,6,"#5a5c52"); px(ctx,gx+10,gy-14,4,6,"#5a5c52");
+      if(g.awake>0){ ell(ctx,gx-6,gy-3,3,3,"#ffe27a"); ell(ctx,gx+6,gy-3,3,3,"#ffe27a"); px(ctx,gx-6,gy-3,1,2,"#2a1a10"); px(ctx,gx+6,gy-3,1,2,"#2a1a10"); }
+      else { px(ctx,gx-9,gy-3,6,1,"#2a2a24"); px(ctx,gx+3,gy-3,6,1,"#2a2a24"); const z=S.rm?0:(T*0.6)%1; drawText(ctx,"z",gx+14+z*6,gy-14-z*10,{c:"rgba(220,230,255,"+(0.8-z*0.6)+")"}); }
+      px(ctx,gx-2,gy+2,4,3,"#c8a44a"); }
+    // the rune gate + runes
+    { const gt=CP.gate, k=gt.open||0, h=82*(1-k); if(h>1){ px(ctx,gt.x,G-h,2*TS,h,"#3a3448"); px(ctx,gt.x+2,G-h,2*TS-4,2,"#5a5070"); for(let i=0;i<3;i++) px(ctx,gt.x+8+i*7,G-h+20,3,6,CP.runes[i].lit?"#9ae0ff":"#4a4060"); } }
+    for(const q of CP.runes){ px(ctx,q.x-4,q.y-10,8,10,"#4a4458"); px(ctx,q.x-2,q.y-8,4,5,q.lit?"#9ae0ff":"#6a5a80"); if(q.lit){ ctx.save(); ctx.globalCompositeOperation="lighter"; ctx.fillStyle="rgba(150,220,255,0.18)"; ctx.beginPath(); ctx.arc(q.x,q.y-6,12,0,7); ctx.fill(); ctx.restore(); } }
+    for(const q of SP.plats) { px(ctx,q.x,q.y,q.w,4,"#3a3448"); px(ctx,q.x,q.y,q.w,1,"#5a5070"); }
+    // the knot of old smoke
+    if(!CP.knot.gone){ const K=CP.knot, wob=S.rm?0:Math.sin(T*2)*1.5, sh=K.hit>0&&!S.rm?Math.sin(T*60)*1.5:0; for(let i=0;i<9;i++) ell(ctx,K.x+16+sh+Math.sin(i*1.9)*9,G-8-i*8+wob*(i%2?1:-1),11-(i%3),6,"rgba(70,60,90,0.9)");
+      for(let i=0;i<6;i++) px(ctx,K.x+6+i*4,G-70+((i*13)%60),6,1,"rgba(150,130,190,0.7)"); px(ctx,K.x+2,G-90,28,3,"#2a1a2a"); px(ctx,K.x+2,G-90,28*K.hp/K.max,3,"#c89aff"); }
+    // Little Si's pawprints (only he can show them)
+    for(const q of CP.paws) if(!q.got){ const a=S.rf?0.8:0.55+0.35*Math.sin(T*3+q.i); for(const [dx,dy] of [[-3,0],[3,-1],[0,-4]]) px(ctx,q.x+dx,G-2+dy,2,2,"rgba(255,230,140,"+a+")"); px(ctx,q.x-2,G+1,5,2,"rgba(255,230,140,"+a+")"); }
+    // the lookout
+    px(ctx,CP.look.x,spTopAt(CP.look.x)-30,2,30,"#3a2a1a"); px(ctx,CP.look.x-8,spTopAt(CP.look.x)-30,18,5,"#5a3a22"); drawText(ctx,"CH.4 >",CP.look.x-12,spTopAt(CP.look.x)-38,{c:"#ff8a9a"});
+    // foes
+    for(const e of SP.foes){ if(!e.alive){ if(e.poof<0.4) for(let k=0;k<5;k++) px(ctx,e.x+Math.cos(k*1.3)*e.poof*30,e.y+Math.sin(k*1.3)*e.poof*30,1,1,"rgba(220,220,255,"+(0.8-e.poof*2)+")"); continue; } const fl=S.rm?0:Math.sin(T*18*COMP[S.comp].moth+e.x)*2; ell(ctx,e.x-3,e.y,3,2+fl*0.3,"#2a2440"); ell(ctx,e.x+3,e.y,3,2-fl*0.3,"#2a2440"); px(ctx,e.x-1,e.y-1,2,3,"#0c0a14"); px(ctx,e.x-1,e.y-1,1,1,S.comp==="fen"?"#ffd0f0":"#c8b8ff"); }
+    // the companion, a few steps behind (sits by the fire at camp)
+    if(S.comp!=="solo"){ const who=S.comp, kh=SP.hist[Math.max(0,SP.hist.length-(who==="si"?18:24))], atFire=CP.t<3&&p.x<CP.fire.x+30;
+      let cx=atFire?CP.fire.x+22:(kh?kh[0]-10:p.x-20), cy=spSolidY(cx); if(cy>200) cy=kh?kh[1]:p.y; if(CP.gate.how==="shoulder"&&CP.gate.open<0.6) cx=CP.gate.x-6;
+      sprDraw(ctx,who,cx,cy,{f:atFire?-1:(kh?kh[2]:1),ph:(!atFire&&kh&&kh[4])?kh[3]:0,blink:(T%3.9)<0.12,talk:talkAmt(who)},SPS);
+      if(CP.whT>0&&CP.whisper){ const tw=CP.whisper.length*6; px(ctx,cx-tw/2-3,cy-50,tw+6,10,"rgba(255,244,220,0.9)"); drawText(ctx,CP.whisper.toUpperCase(),cx-tw/2,cy-48,{c:"#5a2a4a"}); } }
+    for(const d of SP.fx.dust){ d.t+=DT; ctx.fillStyle="rgba(220,220,240,"+(0.5-d.t)+")"; ctx.beginPath(); ctx.arc(d.x,d.y-2-d.t*5,1.5+d.t*5,0,7); ctx.fill(); } SP.fx.dust=SP.fx.dust.filter(d=>d.t<0.6);
+    const shiver=CP.frz>0&&!S.rm?(Math.sin(T*40)>0?1:0):0, ph=ERA_PHYS.adult;
+    if(!(p.inv>0&&Math.floor(T*14)%2&&!S.rf)) eraDrawLeon({x:p.x+shiver,y:p.y,f:p.f,on:p.on,vx:p.vx,vy:p.vy,ph:p.ph,inv:p.inv,flipT:0,pounce:p.pounce,ghosts:[]},{f:p.f,ph:p.on&&Math.abs(p.vx)>5?p.ph:0,jump:p.on?0:(p.vy<0?1:-1),talk:talkAmt("leon"),blink:(T%3.3)<0.12,wear:S.wear},SPS,ph.h);
+    if(CP.frz>0) drawText(ctx,"...",p.x,p.y-30,{align:"center",c:"#dfe6ff"});
+    if(CP.near&&!dlgOpen()&&!MENU&&CP.phase==="walk"){ const t=(isTouch?"^ ":"UP ")+({fire:"REST",lantern:"REST",boulder:S.comp==="kael"?"SHOULDER":"LIFT?",gate:"SHOULDER"})[CP.near], w=t.length*6+8, bx=Math.round(p.x-w/2), by=p.y-44; px(ctx,bx,by,w,11,"#fff4dc"); drawText(ctx,t,bx+4,by+2,{c:"#3a1a3a"}); }
+    eraDrawFx(SP.fx); });
+  vignette(0.4);
+  // HUD: hearts, companion, roar power, noise
+  px(ctx,0,0,W,12,"rgba(10,10,24,0.6)"); for(let i=0;i<CP.hpMax;i++) heartIcon(4+i*7,4,i<CP.hp);
+  drawText(ctx,"CAMP: THE LONG ROAD",W/2,3,{align:"center",c:"#dfe6ff"}); drawText(ctx,COMP[S.comp].n,W-40,3,{align:"right",c:"#ffd36a"});
+  for(let i=0;i<3;i++) starIcon(ctx,W-32+i*9,6,3,i<roarPower()?"#ffd84a":"rgba(255,255,255,0.2)");
+  if(p.x>CP.sneak.a-60&&p.x<CP.sneak.b){ panel(W/2-50,15,100,12,"rgba(20,14,30,0.85)"); drawText(ctx,"NOISE",W/2-46,18,{c:"#b8a8c8"}); px(ctx,W/2-12,18,58,5,"rgba(255,255,255,0.15)"); px(ctx,W/2-12,18,58*clamp(CP.noise,0,1),5,CP.noise>0.7?"#ff7a7a":"#9ae08a"); }
+  if(CP.card>0) cardDraw(CP.card,"INTERLUDE","CAMP","WITH "+COMP[S.comp].n);
+  if(SP.fade>0){ ctx.fillStyle="rgba(0,0,0,"+clamp(1-Math.abs(SP.fade-0.45)/0.45,0,1)+")"; ctx.fillRect(0,0,W,H); }
+  if(CP.phase==="clear"){ const k=clamp(CP.clearT/0.6,0,1); ctx.fillStyle="rgba(4,6,14,"+(0.88*k)+")"; ctx.fillRect(0,0,W,H); panel(34,28,252,124);
+    drawText(ctx,"INTERLUDE CLEAR",W/2,36,{align:"center",s:2,c:"#ffd84a"}); drawText(ctx,"WALKED WITH: "+COMP[S.comp].n,W/2,58,{align:"center",c:"#fff4dc"});
+    drawText(ctx,(S.comp==="solo"?"SELF-TRUST":"TRUST"),96,72,{c:"#b8a8c8"}); pips(170,73,compTrust(),6,S.comp==="solo"?"#b8d8ff":"#ff8aa8");
+    drawText(ctx,"ROAR POWER",96,84,{c:"#b8a8c8"}); for(let i=0;i<3;i++) starIcon(ctx,174+i*9,87,3.2,i<roarPower()?"#ffd84a":"rgba(255,255,255,0.2)");
+    const extra=S.comp==="si"?"MEMORIES FOUND: "+Object.keys(S.camp.mem).length+"/3":S.comp==="solo"?"REFLECTIONS: "+CP.puddles.filter(q=>q.seen).length+"/3":S.comp==="kael"?"PATHS SHOULDERED: "+((CP.boulder.gone?1:0)+(CP.gate.how==="shoulder"?1:0)):"WARDEN WOKEN: "+CP.wakes;
+    drawText(ctx,extra,W/2,98,{align:"center",c:"#e8dcc8"}); drawText(ctx,"CHAPTER 4: FILE NOT FOUND - YET",W/2,114,{align:"center",c:"#ff8a9a"});
+    if(CP.clearT>1.4) drawText(ctx,(isTouch?"A":"ENTER")+": BACK TO SUNHOLLOW",W/2,134,{align:"center",c:"#b8a8c8"}); }
+  menuDraw(); readDraw(); dlgDraw(); }
 /* ===== wiring ===== */
 function begin(){ $("warn").style.display="none"; A.init(); S.boots=(S.boots||0)+1; save(); pubEnter(); }
 $("wGo").onclick=begin;
@@ -1991,6 +2241,8 @@ function frame(now){ DT=Math.min(0.05,(now-last)/1000); last=now; T+=DT; FR++;
    else if(MODE==="stage"){ stageUpdate(DT); if(MODE==="stage") drawStage(); }
    else if(MODE==="ch2"){ ch2Update(DT); if(MODE==="ch2") ch2Draw(); }
    else if(MODE==="ch3"){ ch3Update(DT); if(MODE==="ch3") ch3Draw(); }
+   else if(MODE==="comp"){ compUpdate(DT); if(MODE==="comp") drawComp(); }
+   else if(MODE==="camp"){ campUpdate(DT); if(MODE==="camp") campDraw(); }
    else if(MODE==="prologue"){ prologueUpdate(DT); if(MODE==="prologue") drawPrologue(); }
    if(MODE!=="warn") glitchDraw(DT);
    if(SLOTLIVE&&MODE!=="warn"&&MODE!=="pub"&&MODE!=="title"&&MODE!=="files"&&!document.hidden){ S.play=(S.play||0)+DT; if((FR%600)===0) save(); }
@@ -1999,7 +2251,7 @@ function frame(now){ DT=Math.min(0.05,(now-last)/1000); last=now; T+=DT; FR++;
 requestAnimationFrame(frame);
 if(/[?&]sltest\b/.test(location.search)) Object.defineProperty(window,"__sl",{enumerable:false,configurable:false,value:{
   get mode(){return MODE;}, get S(){return S;}, get ST(){return {phase:ST.phase,got:ST.got,total:ST.total,x:ST.p&&ST.p.x,y:ST.p&&ST.p.y,silent:ST.silent,scared:ST.scared,fig:ST.fig&&ST.fig.on,sil:ST.sil&&ST.sil.state,glitched:ST.glitched,signT:ST.signT,fell:ST.fell,inv:ST.p&&ST.p.inv,shake:ST.shake,ins:ST.ins,fade:ST.fade};}, get VL(){return {x:VL.x,y:VL.y,near:VL.near&&(VL.near.kind==="obj"?VL.near.o.id:VL.near.n.who),weather:VL.weather};},
-  get DLG(){return DLG.cur?{who:DLG.cur.who,text:DLG.cur.text,q:DLG.q.length}:null;}, setEra:(e)=>{ ERA=e; }, files:()=>filesEnter("title"), prFinish:()=>prologueFinish(), get SPL(){return SP;}, get C3L(){return C3;}, get C2L(){return C2;}, prCard:()=>{ PR.nar=null; PR.fade=0; PR.card=1.6; return true; }, fsInset:()=>fsInset(), AU:A, vlx:(x)=>{ VL.x=x; return VL.x; }, get NAR(){ const n=PR.nar; return MODE==='prologue'&&n?{i:n.i,ch:n.ch,txt:n.i>=0?PR_NAR[n.i].t:'',fear:n.fear,ft:n.ft,tree:n.tree,hv:n.hv,bpm:n.bpm,ff:n.ff.on,end:n.end,warm:n.warm}:null; }, narGo:(i)=>{ const n=PR.nar; if(!n) return false; n.i=i; n.ch=PR_NAR[i].t.length; n.hold=99; n.t=Math.max(n.t,3); narEv(n,PR_NAR[i].ev); return true; }, get PRS(){ return MODE==='prologue'?{scene:PR.scene,t:PR.t,nar:!!PR.nar}:null; }, get FS(){ return {sel:FS.sel,msg:FS.msgT>0?FS.msg:""}; }, slots:()=>[1,2,3].map(n=>{ const r=fileInfo(n); return r.st==="ok"?{st:"ok",ch:r.ch,era:r.era,play:Math.round(r.play||0),saved:r.saved,stars:r.stars,flags:r.d.flags,ch2:r.d.ch2}:{st:r.st}; }), get CUR(){ return CUR; }, get LIVE(){ return SLOTLIVE; }, slotRaw:(n,v)=>{ if(v===undefined) return localStorage.getItem("starLion2.slot"+n); localStorage.setItem("starLion2.slot"+n,v); }, dress:(on)=>{ S.wear.dress=!!on; if(typeof C2!=="undefined") C2.dress=on==null?null:(on?1:0); }, get leonBust(){ return bustName("leon","neutral"); }, get crownEarned(){ return !!S.flags.crownEarned; }, ch2:()=>ch2Enter(), ch3:()=>ch3Enter(), ch2meadow:()=>ch2Meadow(), ch2bully:()=>ch2Bully(), ch2hill:()=>ch2Hill(), hz:(x,y)=>{ C2HX=x; C2HY=y; }, stopSc:()=>{ SC.steps=[]; SC.wait=0; closeMenu(); DLG.q=[]; DLG.cur=null; }, c2set:(o)=>Object.assign(C2,o), say:(l)=>say(l), bully:()=>{ SP.p.x=SP.len-160; C2.toHill=true; ch2Bully(); }, spr:(n)=>!!SPRMETA[n], get F(){ const F=C2.F; return F?{st:F.st,comp:F.comp,nerve:F.nerve,lx:Math.round(F.lx),gx:Math.round(F.gx),auto:F.auto,hits:F.hits,shoves:F.shoves}:null; }, silURL:()=>{ const c=ch2SilBuild(); return c?c.toDataURL():null; }, get C2x(){ return {phase:C2.phase,ta:C2.ta,steady:C2.steady,hz:C2.hz?C2.hz.t:null,sit:C2.sit,static:C2.static}; }, get C2(){return {phase:C2.phase,jar:C2.jar,look:C2.look,groomed:C2.groomed,smiles:C2.smiles,mirror:C2.mirror,near:C2.near&&C2.near.id,x:C2.x};}, get C3(){return {phase:C3.phase,refl:C3.refl,still:C3.still,pool:C3.pool};}, get SPP(){return SP.p?{x:SP.p.x,y:SP.p.y,on:SP.p.on,len:SP.len,got:SP.got,fell:SP.fell,lock:!!SP.lock}:null;}, spWarp:(x)=>{ SP.p.x=x; SP.p.y=spSolidY(x)<999?spSolidY(x):100; SP.p.vx=SP.p.vy=0; SP.cam=clamp(x-W*0.4,0,SP.len-W); }, smoke:()=>SP.smoke?SP.smoke.map(s=>[s.x,s.y,Math.round(s.solid*10)/10]):null, get SCW(){return SC.wait;}, npcs:()=>VNPC.map(n=>({w:n.who,x:Math.round(n.x),y:Math.round(n.y),hide:n.hide,a:Math.round(n.alpha*10)/10,mv:!!n.moving})), get chat(){ return VL.chat?[VL.chat.a.who,VL.chat.b.who]:null; }, get dbg(){ return {auto:AUTO,pad:Object.assign({},pad),ss:SS.on,read:!!READ,lock:!!SP.lock,fade:SP.fade,fell:SP.fell,menu:!!MENU,dlg:dlgOpen()}; }, get era(){return ERA;}, get P(){return ST.p?{boost:ST.p.boost,flipT:ST.p.flipT,pounce:ST.p.pounce,roarCd:ST.p.roarCd,vx:ST.p.vx,vy:ST.p.vy,on:ST.p.on}:null;}, foes:()=>ST.lv?ST.lv.foes.map(e=>[Math.round(e.x),Math.round(e.y),e.alive]):null, get talk(){return DLG.cur?{who:DLG.cur.who,f:bustFrame(talkAmt(DLG.cur.who)),n:dlgShown(),len:DLG.cur.text.length}:null;}, get MENU(){return MENU?{title:MENU.title,sel:MENU.sel,n:MENU.items.length}:null;}, get READ(){return READ?READ.title:null;}, get CAFE(){return {on:CAFE.on,t:CAFE.t,score:CAFE.score,end:CAFE.end,want:CAFE.cust&&CAFE.cust.want,odd:CAFE.cust&&CAFE.cust.odd};}, get SS(){return SS.on;}, get PB(){return PB.t;}, get GL(){return GL.on;},
+  get DLG(){return DLG.cur?{who:DLG.cur.who,text:DLG.cur.text,q:DLG.q.length}:null;}, setEra:(e)=>{ ERA=e; }, files:()=>filesEnter("title"), prFinish:()=>prologueFinish(), get SPL(){return SP;}, get C3L(){return C3;}, get C2L(){return C2;}, camp:()=>campEnter(), compSel:(f)=>compSelect(f?()=>{}:null), afterC3:()=>compAfterC3(), get CAMP(){ return MODE==="camp"?{phase:CP.phase,hp:CP.hp,hpMax:CP.hpMax,noise:Math.round(CP.noise*100)/100,frz:CP.frz,frzN:CP.frzN||0,wakes:CP.wakes,near:CP.near,gate:CP.gate.open,gateHow:CP.gate.how,runes:CP.runes.map(r=>r.lit),knot:CP.knot.hp,knotGone:CP.knot.gone,boulder:CP.boulder.gone,paws:CP.paws.map(q=>!!q.got),puddles:CP.puddles.map(q=>!!q.seen),x:Math.round(SP.p.x),lock:!!SP.lock,power:roarPower(),down:CP.down||0}:null; }, get CPL(){ return CP; }, roarPow:(c)=>roarPower(c), comps:()=>({comp:S.comp,trust:S.trust,camp:S.camp}), get CS(){ return MODE==="comp"?{sel:CS.sel,compact:!!CS.compact,IL:CS.IL||0}:null; }, get EGGS(){ return SIDX.eggs; }, prCard:()=>{ PR.nar=null; PR.fade=0; PR.card=1.6; return true; }, fsInset:()=>fsInset(), AU:A, vlx:(x)=>{ VL.x=x; return VL.x; }, get NAR(){ const n=PR.nar; return MODE==='prologue'&&n?{i:n.i,ch:n.ch,txt:n.i>=0?PR_NAR[n.i].t:'',fear:n.fear,ft:n.ft,tree:n.tree,hv:n.hv,bpm:n.bpm,ff:n.ff.on,end:n.end,warm:n.warm}:null; }, narGo:(i)=>{ const n=PR.nar; if(!n) return false; n.i=i; n.ch=PR_NAR[i].t.length; n.hold=99; n.t=Math.max(n.t,3); narEv(n,PR_NAR[i].ev); return true; }, get PRS(){ return MODE==='prologue'?{scene:PR.scene,t:PR.t,nar:!!PR.nar}:null; }, get FS(){ return {sel:FS.sel,msg:FS.msgT>0?FS.msg:""}; }, slots:()=>[1,2,3].map(n=>{ const r=fileInfo(n); return r.st==="ok"?{st:"ok",ch:r.ch,era:r.era,play:Math.round(r.play||0),saved:r.saved,stars:r.stars,flags:r.d.flags,ch2:r.d.ch2}:{st:r.st}; }), get CUR(){ return CUR; }, get LIVE(){ return SLOTLIVE; }, slotRaw:(n,v)=>{ if(v===undefined) return localStorage.getItem("starLion2.slot"+n); localStorage.setItem("starLion2.slot"+n,v); }, dress:(on)=>{ S.wear.dress=!!on; if(typeof C2!=="undefined") C2.dress=on==null?null:(on?1:0); }, get leonBust(){ return bustName("leon","neutral"); }, get crownEarned(){ return !!S.flags.crownEarned; }, ch2:()=>ch2Enter(), ch3:()=>ch3Enter(), ch2meadow:()=>ch2Meadow(), ch2bully:()=>ch2Bully(), ch2hill:()=>ch2Hill(), hz:(x,y)=>{ C2HX=x; C2HY=y; }, stopSc:()=>{ SC.steps=[]; SC.wait=0; closeMenu(); DLG.q=[]; DLG.cur=null; }, c2set:(o)=>Object.assign(C2,o), say:(l)=>say(l), bully:()=>{ SP.p.x=SP.len-160; C2.toHill=true; ch2Bully(); }, spr:(n)=>!!SPRMETA[n], get F(){ const F=C2.F; return F?{st:F.st,comp:F.comp,nerve:F.nerve,lx:Math.round(F.lx),gx:Math.round(F.gx),auto:F.auto,hits:F.hits,shoves:F.shoves}:null; }, silURL:()=>{ const c=ch2SilBuild(); return c?c.toDataURL():null; }, get C2x(){ return {phase:C2.phase,ta:C2.ta,steady:C2.steady,hz:C2.hz?C2.hz.t:null,sit:C2.sit,static:C2.static}; }, get C2(){return {phase:C2.phase,jar:C2.jar,look:C2.look,groomed:C2.groomed,smiles:C2.smiles,mirror:C2.mirror,near:C2.near&&C2.near.id,x:C2.x};}, get C3(){return {phase:C3.phase,refl:C3.refl,still:C3.still,pool:C3.pool};}, get SPP(){return SP.p?{x:SP.p.x,y:SP.p.y,on:SP.p.on,len:SP.len,got:SP.got,fell:SP.fell,lock:!!SP.lock}:null;}, spWarp:(x)=>{ SP.p.x=x; SP.p.y=spSolidY(x)<999?spSolidY(x):100; SP.p.vx=SP.p.vy=0; SP.cam=clamp(x-W*0.4,0,SP.len-W); }, smoke:()=>SP.smoke?SP.smoke.map(s=>[s.x,s.y,Math.round(s.solid*10)/10]):null, get SCW(){return SC.wait;}, npcs:()=>VNPC.map(n=>({w:n.who,x:Math.round(n.x),y:Math.round(n.y),hide:n.hide,a:Math.round(n.alpha*10)/10,mv:!!n.moving})), get chat(){ return VL.chat?[VL.chat.a.who,VL.chat.b.who]:null; }, get dbg(){ return {auto:AUTO,pad:Object.assign({},pad),ss:SS.on,read:!!READ,lock:!!SP.lock,fade:SP.fade,fell:SP.fell,menu:!!MENU,dlg:dlgOpen()}; }, get era(){return ERA;}, get P(){return ST.p?{boost:ST.p.boost,flipT:ST.p.flipT,pounce:ST.p.pounce,roarCd:ST.p.roarCd,vx:ST.p.vx,vy:ST.p.vy,on:ST.p.on}:null;}, foes:()=>ST.lv?ST.lv.foes.map(e=>[Math.round(e.x),Math.round(e.y),e.alive]):null, get talk(){return DLG.cur?{who:DLG.cur.who,f:bustFrame(talkAmt(DLG.cur.who)),n:dlgShown(),len:DLG.cur.text.length}:null;}, get MENU(){return MENU?{title:MENU.title,sel:MENU.sel,n:MENU.items.length}:null;}, get READ(){return READ?READ.title:null;}, get CAFE(){return {on:CAFE.on,t:CAFE.t,score:CAFE.score,end:CAFE.end,want:CAFE.cust&&CAFE.cust.want,odd:CAFE.cust&&CAFE.cust.odd};}, get SS(){return SS.on;}, get PB(){return PB.t;}, get GL(){return GL.on;},
   get PR(){return {t:PR.t,scene:PR.scene,x:PR.x,y:PR.y,on:PR.on,ff:PR.ff&&PR.ff.on,vOn:PR.vOn,endT:PR.endT,fade:PR.fade,card:PR.card,skip:PR.skip,cap:PR.capT>0?PR.cap:""};}, prologue:(r)=>prologueEnter(r), get PRX(){return {sniffT:PR.sniffT,sniffs:PR.sniffs,duck:PR.duck,ducked:PR.ducked};},
   begin, title:()=>titleEnter(), village:()=>villageEnter(), stage:()=>stageEnter("s1"), vx:(x)=>{ VL.x=x; VL.cam=clamp(x-W/2,0,VW-W); }, vy:(y)=>{ VL.y=y; }, tod:(t)=>{ S.tod=t; }, weather:(w)=>{ VL.weather=w; },
   warp:(tx)=>{ ST.p.x=tx*TS+8; ST.p.y=(ROWS-ST.lv.top[tx])*TS; ST.p.vx=0; ST.p.vy=0; ST.cam=clamp(ST.p.x-W*0.4,0,LEN*TS-W); }, auto:(on)=>{ AUTO=on; if(!on){ pad.r=false; pad.j=false; } }, skipDlg:()=>{ DLG.q=[]; DLG.cur=null; const d=DLG.done; DLG.done=null; if(d) d(); },
