@@ -1546,14 +1546,14 @@ const STAGES=[{id:"s1",n:"CHAPTER 1",t:"SUNPAW",d:"Bright. Friendly. Nothing els
  {id:"c2",n:"CHAPTER 2",t:"FIREFLIES",d:"Teen Leon. A hill. A maybe-date.",open:()=>!!S.done.s1,go:()=>playInterlude("teen_ready"),era:"teen",best:()=>S.ch2&&S.ch2.jar!=null?S.ch2.jar:null,lock:"CLEAR CH.1"},
  {id:"c3",n:"CHAPTER 3",t:"SMOKE SONGS",d:"The Lantern Falls. Bring Kael.",open:()=>!!S.done.c2,go:()=>ch3Enter(),era:"adult",lock:"CLEAR CH.2"},
  {id:"c4",n:"CHAPTER 4",t:"WIND & WOE",d:"A stage. A storm. Build them a home.",open:()=>!!S.done.c3,go:()=>ch4Enter(),era:"adult",lock:"CLEAR CH.3"},
- {id:"c5",n:"CHAPTER 5",t:"OTHER SUNS",d:"Roar at other suns. Cry to many moons.",open:()=>!!S.done.c4,go:()=>ch5Enter(),era:"adult",lock:"TRUE END CH.4"},
+ {id:"c5",n:"CHAPTER 5",t:"OTHER SUNS",d:"Roar at other suns. Cry to many moons.",open:()=>!!(S.done.c4||S.done.c4e),go:()=>ch5Enter(),era:"adult",lock:"FINISH CH.4"},
  {id:"c6",n:"CHAPTER 6",t:"YE WHO ASK~",d:"The Lion of JC to A-Z: ye who ask~",open:()=>!!S.done.c5,go:()=>ch6Enter(),era:"adult",lock:"CLEAR CH.5"}];
 const SS={on:false,sel:0,top:0};
 function stageSelect(){ SS.on=true; SS.sel=S.done.c5?5:S.done.c4?4:S.done.c3?3:S.done.c2?2:S.done.s1?1:0; ssTop(); }
 function ssTop(){ SS.top=clamp(SS.top,Math.max(0,SS.sel-3),Math.min(SS.sel,STAGES.length-4)); }
 function ssUpdate(){ const n=STAGES.length; if(take("l")){ SS.sel=(SS.sel+n-1)%n; A.sfx.uiMove(); } if(take("r")){ SS.sel=(SS.sel+1)%n; A.sfx.uiMove(); } ssTop();
   if(backP()){ SS.on=false; A.sfx.uiBack(); return; }
-  if(okP()){ const s=STAGES[SS.sel]; if(s.open()){ A.sfx.uiOk(); SS.on=false; s.go(); } else { A.sfx.uiNo(); SS.on=false; if(s.id==="c4") say([["hare","The gate says the smoke-song one comes first. Chapter Three. It's very firm about it."]]); else if(s.id==="c5"||s.id==="c6") say([["sign",s.id==="c5"?"(The road to the other suns opens when Fen is home. Light every lantern.)":"(Something golden is waiting at the end of Chapter Five.)"]]); else say([["hare",s.id==="c2"?"Gate says you gotta finish Sunpaw Meadows first. It also says 'no refunds.' Nobody asked it.":"The gate wants you to finish the firefly one first. It's very particular. Like my aunt."]]); } } }
+  if(okP()){ const s=STAGES[SS.sel]; if(s.open()){ A.sfx.uiOk(); SS.on=false; s.go(); } else { A.sfx.uiNo(); SS.on=false; if(s.id==="c4") say([["hare","The gate says the smoke-song one comes first. Chapter Three. It's very firm about it."]]); else if(s.id==="c5"||s.id==="c6") say([["sign",s.id==="c5"?"(The road to the other suns opens at the end of the long way to Fen.)":"(Something golden is waiting at the end of Chapter Five - the bright way, with every lantern lit and Fen home.)"]]); else say([["hare",s.id==="c2"?"Gate says you gotta finish Sunpaw Meadows first. It also says 'no refunds.' Nobody asked it.":"The gate wants you to finish the firefly one first. It's very particular. Like my aunt."]]); } } }
 function ssDraw(){ ctx.fillStyle="rgba(16,10,28,0.94)"; ctx.fillRect(0,0,W,H); drawText(ctx,"CHAPTER SELECT",W/2,8,{align:"center",s:2,c:"#ffd36a"});
   const w=74,h=112; STAGES.forEach((s,i)=>{ if(i<SS.top||i>SS.top+3) return; const x=6+(i-SS.top)*78, y=28, on=i===SS.sel, op=s.open(); panel(x,y,w,h,on?"rgba(60,36,80,0.95)":"rgba(30,20,40,0.9)");
    const g=ctx.createLinearGradient(0,y+16,0,y+62); const C=[["#8ad0ff","#bff0a0"],["#b98aa8","#f2a96b"],["#0c1428","#2a3a5a"],["#3a0a10","#0a0a0a"],["#3a0a10","#0a0a0a"],["#3a0a10","#0a0a0a"]][i]; g.addColorStop(0,C[0]); g.addColorStop(1,C[1]); ctx.fillStyle=g; ctx.fillRect(x+4,y+15,w-8,46);
@@ -4198,7 +4198,7 @@ function v23Light(){ if(MODE==="ch4") return C4&&C4.night?"ember":"day"; if(MODE
 function v23Overlay(dt){ if(!MEM23&&MEMQ.length&&memSafe()){ MEMQ[0].t-=dt; if(MEMQ[0].t<=0) memPlay(MEMQ.shift().k); } if(MEM23){ memUpdate(dt); if(MEM23) memDraw(); pressed.clear(); return true; } return false; }
 function v23Post(dt){ toastDraw(dt); }
 function v23State(){ const v=V23(); return {mode:MODE,c4:JSON.parse(JSON.stringify(v.c4)),q:JSON.parse(JSON.stringify(v.q)),c5:Object.assign({},v.c5),c6:JSON.parse(JSON.stringify(v.c6)),tro:Object.keys(v.tro),lan:Object.keys(v.lan),mem:Object.keys(v.mem),
-  fig:Object.keys(v.fig),vin:Object.keys(v.vin),ff:Object.keys(v.ff),ch:Object.assign({},v.ch),gore:goreOn(),memOn:MEM23?MEM23.k:null,toasts:TST.map(t=>t.t),done:{c4:!!S.done.c4,c4e:!!S.done.c4e,c5:!!S.done.c5,c6:!!S.done.c6},
+  fig:Object.keys(v.fig),vin:Object.keys(v.vin),ff:Object.keys(v.ff),ch:Object.assign({},v.ch),gore:goreOn(),memOn:MEM23?MEM23.k:null,toasts:TST.map(t=>t.t),done:{c4:!!S.done.c4,c4e:!!S.done.c4e,c5:!!S.done.c5,c5e:!!S.done.c5e,c6:!!S.done.c6},
   c4v:typeof C4!=="undefined"&&MODE==="ch4"?c4State():null,woe:MODE==="woe"?woState():null,c5v:MODE==="ch5"?c5State():null,c6v:MODE==="ch6"?c6State():null,music:A.kind}; }
 /* ===== CHAPTER FOUR - "THE WIND AND WOE" (v23) =====
    "You will build a family, the wind and woe will wash them away."
@@ -4528,6 +4528,7 @@ const ECHO=[{say:"LEAVE ME ALONE!",back:[["fen","...leave me alone..."],["inner"
  {say:"I HATE YOU!",back:[["garrowcub","...i hate you..."],["sign","(Muffled shouting somewhere behind the echo - a big voice, jagged scribbles of sound, no words you can make out. Then a cub, very small, saying it back to the dark.)"],["inner","Garrow. Little Garrow. Somebody said it to him first."]]}];
 const C5={ph:"off",t:0,i:0,warm:5,ring:120,hits:0,fx:[],shake:0,hold:0,cry:0,heart:1,cool:0,pause:0,luzX:0,said:0};
 function c5V(){ return S.v23.c5; }
+function c5True(){ return !!S.done.c4; }   // the bright way: every lantern lit, Fen home. Rushing Ch4 leads to the emptier sky.
 function ch5Enter(){ closeMenu(); READ=null; SS.on=false; DLG.q=[]; DLG.cur=null; DLG.done=null; ERA="adult"; MODE="ch5"; setBodyMode("game"); CF.on=false; const v=c5V();
   C5.t=0; C5.fx=[]; C5.warm=5; C5.hits=0; C5.ring=120; C5.pause=0; C5.hold=0; C5.cry=0; C5.heart=1; A.ambSet({wind:0.12});
   C5.ph="card"; C5.next=v.dark?"end":v.echo?"dark":v.luz?"echo":v.moon>=3?"luz":v.sun>=3?"moon":"sun"; A.play("c5_suns"); }
@@ -4539,7 +4540,8 @@ function c5Go(ph){ const v=c5V(); C5.ph=ph; C5.t=0; C5.fx=[]; C5.pause=0;
   if(ph==="echo"){ A.stop(); A.ambSet({wind:0.05}); C5.i=0; say([["sign","(Luz leads him down, into a cave behind the sky. Every sound in here comes back.)"],["luz","Go on. Shout. It's allowed in here. Just... listen to what comes back."],["sign","(\"You'll only hear your echo.\")"]],()=>echoMenu()); }
   if(ph==="dark"){ A.stop(); A.musFade(0,2); A.ambSet({wind:0.04}); C5.heart=1; C5.hold=0; C5.said=0;
     say([["sign","(\"You will learn the ones you hurt are also the one's you love. This will destroy you.\")"],["sign","(It goes cold. And quiet. The heart-lantern in Leon's chest gutters down to almost nothing.)"],["sign","(\"The chill in your soul will ache and rake your sorrows.\")"],["sign",isTouch?"(Hold A. Just stay.)":"(Hold Z / SPACE. Just stay.)"]]); }
-  if(ph==="end"){ A.play("c5_luz"); A.musFade(1,1); say([["luz","There. You stayed. That's the whole trick, you know. You just stay, one more minute, and then one more."],["sign","(\"Your love will show you your truth.\")"],["luz","Come on. Somebody's waiting at the fountain. He's been waiting a long time. He's very patient. You'll like him."]],()=>{ S.done.c5=1; save(); troGive("g_ch5"); C5.ph="fin"; C5.t=0; }); } }
+  if(ph==="end"&&!c5True()){ A.play("c5_luz"); A.musFade(0.7,1); say([["luz","You stayed. That's the whole trick - one more minute, and then one more."],["luz","But the fountain's quiet tonight. Nobody's waiting by the golden door yet. You came here too fast, little one. You left the road dark behind you."],["sign","(AN EMPTIER ENDING. Light every lantern on the long way, bring Fen home, and the sky will be fuller next time.)"]],()=>{ S.done.c5e=1; save(); C5.ph="fin"; C5.t=0; C5.empty=1; }); return; }
+  if(ph==="end"){ C5.empty=0; A.play("c5_luz"); A.musFade(1,1); say([["luz","There. You stayed. That's the whole trick, you know. You just stay, one more minute, and then one more."],["sign","(\"Your love will show you your truth.\")"],["luz","Come on. Somebody's waiting at the fountain. He's been waiting a long time. He's very patient. You'll like him."]],()=>{ S.done.c5=1; save(); troGive("g_ch5"); C5.ph="fin"; C5.t=0; }); } }
 function luzAsk(){ openMenu({title:"THE EMPTY SKY",w:200,items:[{label:"ASK FOR SOL",fn:()=>{ closeMenu(); A.sfx.chime();
   say([["leon","(Quietly, then louder.) Sol? SOL! Please. I need the sun. I need it back."],["sign","(Nothing. Then, from the edge of the sky, a small light. Not a sun. Something softer. Moon-coloured, but warm.)"],["luz","Hello, little one. I'm not Sol. I'm Luz. I'm what came when you asked."],["sign","(\"You'll ask for your Sol, and you'll receive Luz.\")"],
    ["leon","...I asked for the sun."],["luz","I know. The sun's too bright to walk next to. I'm the kind of light you can carry. Will I do, for now?"],["leon","...Yeah. Yeah, you'll do."]],()=>{ c5V().luz=1; save(); c5Go("echo"); }); }},
@@ -4550,7 +4552,7 @@ function echoMenu(){ const used=C5.used||(C5.used={}); openMenu({title:"SHOUT IN
 function c5Update(dt){ C5.t+=dt; if(READ) return readUpdate(); if(MENU) return menuUpdate(); if(dlgOpen()){ dlgUpdate(dt); return; }
   for(const f of C5.fx) f.t+=dt; C5.fx=C5.fx.filter(f=>f.t<(f.ink?2:0.6)); C5.shake=Math.max(0,C5.shake-dt);
   if(C5.ph==="card"){ if(C5.t>3.4||((okP()||backP())&&C5.t>0.6)) c5Go(C5.next); return; }
-  if(C5.ph==="fin"){ if(C5.t>4||((okP()||backP())&&C5.t>1)) ch6Enter(); return; }
+  if(C5.ph==="fin"){ if(C5.t>4||((okP()||backP())&&C5.t>1)){ if(C5.empty){ C5.ph="off"; villageEnter("c4"); } else ch6Enter(); } return; }
   if(take("p")){ openMenu({title:"PAUSED",w:210,items:[{label:"RESUME",fn:()=>closeMenu()},{label:"OPTIONS",fn:()=>openMenu({title:"OPTIONS",w:210,items:optItems(()=>closeMenu()),back:()=>closeMenu()})},{label:"BACK TO THE VILLAGE",fn:()=>{ closeMenu(); villageEnter("c4"); }}],back:()=>closeMenu()}); return; }
   if(C5.pause>0){ C5.pause-=dt; if(C5.pause<=0){ C5.warm=5; C5.hits=0; C5.ring=120; } return; }
   if(C5.ph==="sun") return sunUpdate(dt); if(C5.ph==="moon") return moonUpdate(dt); if(C5.ph==="dark") return darkUpdate(dt); }
@@ -4565,7 +4567,7 @@ function moonUpdate(dt){ const holding=held("a")||held("j")||held("u"); if(holdi
 function darkUpdate(dt){ const holding=held("a")||held("j")||held("u"); if(holding){ C5.hold+=dt; C5.heart=Math.min(1,C5.heart+dt*0.05); } else C5.heart=Math.max(0.12,C5.heart-dt*0.06);
   if(A.ctx&&holding&&Math.floor(C5.t*0.9)!==Math.floor((C5.t-dt)*0.9)){ const t=A.now(); A.tone(55,t,0.18,"sine",0.05,{lp:200}); A.tone(52,t+0.25,0.16,"sine",0.035,{lp:200}); }   // a heartbeat, soft
   if(C5.said===0&&C5.hold>2.5){ C5.said=1; say([["sign","(He's still breathing.)"]]); }
-  else if(C5.said===1&&C5.hold>5){ C5.said=2; A.ambSet({}); say([["fen","(Very faint. From very far away, or from right beside him.) ...You're still here."],["sign","(The heart-lantern catches. A small warm light comes back up the cave: Luz, and behind Luz, the sound of a fountain.)"]],()=>{ c5V().dark=1; save(); c5Go("end"); }); } }
+  else if(C5.said===1&&C5.hold>5){ C5.said=2; A.ambSet({}); say((c5True()?[["fen","(Very faint. From very far away, or from right beside him.) ...You're still here."]]:[["luz","(Quietly. Not Fen's voice - nobody's out on that dark road to say it.) ...You're still here."],["sign","(Far below, a lantern road is still dark. A scarf is still folded under a cold lamp.)"]]).concat([["sign","(The heart-lantern catches. A small warm light comes back up the cave: Luz, and behind Luz, the sound of a fountain.)"]]),()=>{ c5V().dark=1; save(); c5Go("end"); }); } }
 function c5State(){ return {ph:C5.ph,i:C5.i,warm:C5.warm,hits:C5.hits,ring:Math.round(C5.ring),cry:Math.round(C5.cry*100)/100,heart:Math.round(C5.heart*100)/100,hold:Math.round(C5.hold*10)/10,pause:C5.pause>0,said:C5.said}; }
 function c5Draw(){ ctx.imageSmoothingEnabled=false; const ph=C5.ph, cave=ph==="echo"||ph==="dark"||(ph==="end"), sx=C5.shake>0&&!S.rm?(Math.random()-0.5)*4:0; ctx.save(); ctx.translate(sx,0);
   const bg=cave?"c5_cave":"c5_sky"; if(bgOk(bg)){ ctx.save(); if(ph==="dark") ctx.filter="brightness("+(0.25+C5.heart*0.35).toFixed(2)+") saturate(0.3)"; ctx.drawImage(BGIMG[bg],0,0); ctx.restore(); } else { ctx.fillStyle=cave?"#0a0a14":"#1a1030"; ctx.fillRect(0,0,W,H); }
@@ -4591,7 +4593,7 @@ function c5Draw(){ ctx.imageSmoothingEnabled=false; const ph=C5.ph, cave=ph==="e
   if(ph==="sun"){ px(ctx,0,0,W,12,"rgba(20,12,28,0.6)"); drawText(ctx,SUNS[C5.i].n,4,3,{c:"#ffd8a0"}); for(let i=0;i<5;i++) ell(ctx,W-60+i*11,6,4,4,i<C5.warm?"#ff9a5a":"#3a2a3a"); drawText(ctx,"WARM",W-92,3,{c:"#ffcfa0"}); }
   if(C5.pause>0){ ctx.fillStyle="rgba(0,0,0,"+(0.55*clamp(C5.pause,0,1)).toFixed(2)+")"; ctx.fillRect(0,0,W,H); }
   if(ph==="card") cardDraw(clamp(C5.t/0.6,0,1)*clamp((3.4-C5.t)/0.6,0,1),"CHAPTER FIVE","ROAR AT OTHER SUNS","...AND CRY TO MANY MOONS");
-  if(ph==="fin"){ ctx.fillStyle="rgba(6,4,10,"+clamp(C5.t/1.2,0,0.9).toFixed(2)+")"; ctx.fillRect(0,0,W,H); cardDraw(clamp(C5.t/0.8,0,1),"END OF CHAPTER FIVE","OTHER SUNS","YOU'RE STILL HERE."); }
+  if(ph==="fin"){ ctx.fillStyle="rgba(6,4,10,"+clamp(C5.t/1.2,0,0.9).toFixed(2)+")"; ctx.fillRect(0,0,W,H); cardDraw(clamp(C5.t/0.8,0,1),"END OF CHAPTER FIVE",C5.empty?"AN EMPTIER SKY":"OTHER SUNS",C5.empty?"THE ROAD BEHIND YOU IS STILL DARK.":"YOU'RE STILL HERE."); }
   menuDraw(); readDraw(); dlgDraw(); }
 /* ===== CHAPTER SIX - "THE LION OF JC TO A-Z: YE WHO ASK~" (v23) =====
    Leon wakes at the fountain. The figure from the golden door walks toward him - the one bipedal lion in the whole story, an older,
@@ -4638,7 +4640,7 @@ function c6Update(dt){ C6.t+=dt; if(READ) return readUpdate(); if(MENU) return m
     const dir=(held("r")?1:0)-(held("l")?1:0); C6.walk=!!dir; if(dir){ C6.f=dir; C6.x=clamp(C6.x+dir*62*dt,14,STW-20); C6.ph2+=dt*9; } C6.cam=lerp(C6.cam,clamp(C6.x-W/2,0,STW-W),Math.min(1,dt*6));
     let best=null,bd=16; for(const o of c6Objs()){ const d=Math.abs(o.x-C6.x); if(d<bd){ bd=d; best=o; } } for(const n of c6Folk()){ const d=Math.abs(n.x-C6.x); if(d<bd-4){ bd=d; best={k:"npc",n,x:n.x,label:NAMES[n.who]||n.id}; } } C6.near=best;
     if(best&&(okP()||take("u"))){ if(best.k==="fire") c6Go("verse"); else say([[best.n.who,best.n.line]]); } return; }
-  if(C6.ph==="sing"){ const t=C6.t; C6.line=Math.min(4,Math.floor(t/(C6.dur/5))); if(t>C6.dur+1||(SK()&&t>2)) c6Go("cred"); return; }
+  if(C6.ph==="sing"){ const t=C6.t; C6.line=Math.min(4,Math.floor(t/Math.min(7,C6.dur/5))); if(t>C6.dur+1||(SK()&&t>2)) c6Go("cred"); return; }
   if(C6.ph==="cred"){ C6.cred+=dt*(SK()||held("a")?60:16); if(C6.cred>C6CRED.length*14+200) c6Go("ff"); return; }
   if(C6.ph==="ff"){ C6.ffN=Math.min(C6FF.length,Math.floor(C6.t*3)); if(C6.t>C6FF.length/3+4||(SK()&&C6.t>C6FF.length/3+0.5)) c6Go("end"); return; }
   if(C6.ph==="end"){ if(C6.t>1.5&&SK()){ A.ambSet({}); villageEnter("c4"); } } }
